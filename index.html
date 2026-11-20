@@ -3,69 +3,216 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#0e1430">
-  <title>Đảo Đèn Lồng</title>
+  <meta name="theme-color" content="#07091a">
+  <title>Đảo Đèn Lồng — Lanterna Island</title>
   <link rel="stylesheet" href="src/web/style.css">
 </head>
 <body>
   <canvas id="world" aria-label="Thế giới 3D Đảo Đèn Lồng"></canvas>
   <div class="vignette"></div>
+  <div class="mist-overlay"></div>
+
+  <!-- In-game HUD -->
   <header id="hud" class="hud hidden">
     <div class="hud-top">
-      <div class="flames" id="flames"></div>
-      <div class="clock" id="clock">05:00</div>
-      <div class="score"><span id="lantern-count">Đèn 0/5</span><b id="score">0</b></div>
+      <div class="hud-card flames-card">
+        <span class="hud-label">SINH MỆNH</span>
+        <div class="flames" id="flames"></div>
+      </div>
+
+      <div class="hud-card clock-card">
+        <span class="hud-label">THỜI GIAN</span>
+        <div class="clock-display">
+          <svg class="clock-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+          </svg>
+          <span class="clock" id="clock">05:00</span>
+        </div>
+      </div>
+
+      <div class="hud-card score-card">
+        <span class="hud-label" id="lantern-count">ĐÈN 0/5</span>
+        <div class="score-display">
+          <span class="score-sparkle">✦</span>
+          <b id="score">0</b>
+          <span class="score-unit">ĐIỂM</span>
+        </div>
+      </div>
     </div>
-    <div id="fps" class="fps">FPS —</div>
-    <div id="wind-warning" class="wind-warning hidden">Gió mạnh đang tới</div>
+
+    <div id="fps" class="fps">FPS 60</div>
+    <div id="wind-warning" class="wind-warning hidden">
+      <span class="wind-icon">༄</span> GIÓ LẠC CUỐN SƯƠNG ĐANG TỚI!
+    </div>
+
     <div class="hud-bottom">
-      <div class="mote-meter"><span>ĐOM ĐÓM</span><div id="motes"></div></div>
-      <div class="cooldowns"><span id="dash-cd">LƯỚT SẴN SÀNG</span><span id="pulse-cd">TỎA SÁNG SẴN SÀNG</span></div>
+      <div class="hud-card mote-card">
+        <div class="mote-header">
+          <span class="hud-label">ĐOM ĐÓM NẠP ĐÈN</span>
+          <span class="mote-counter"><span id="carried-count">0</span>/<span id="capacity-count">10</span></span>
+        </div>
+        <div id="motes" class="mote-slots"></div>
+      </div>
+
+      <div class="cooldowns">
+        <div class="skill-badge" id="dash-badge">
+          <span class="skill-key">SHIFT</span>
+          <span class="skill-name" id="dash-cd">LƯỚT SẴN SÀNG</span>
+        </div>
+        <div class="skill-badge" id="pulse-badge">
+          <span class="skill-key">Q</span>
+          <span class="skill-name" id="pulse-cd">TỎA SÁNG SẴN SÀNG</span>
+        </div>
+      </div>
     </div>
-    <div id="hint" class="hint hidden">E — Nạp ánh sáng</div>
-    <div id="arrow" class="arrow hidden"><b>✦</b><span>ĐÈN GẦN NHẤT</span></div>
+
+    <div id="hint" class="hint hidden">
+      <span class="hint-key">[E]</span>
+      <span class="hint-text">NẠP ÁNH SÁNG</span>
+    </div>
+
+    <div id="arrow" class="arrow hidden">
+      <div class="arrow-core">✦</div>
+      <span>ĐÈN GẦN NHẤT</span>
+    </div>
+    <div id="lantern-fuels" class="lantern-fuels" aria-label="Nhiên liệu các đèn"></div>
   </header>
 
+  <!-- Main Menu Screen -->
   <main id="home" class="screen">
-    <div class="eyebrow">MỘT CÂU CHUYỆN QUA BA ĐÊM</div>
-    <h1>ĐẢO ĐÈN<br><em>LỒNG</em></h1>
-    <p class="intro">Sương đen phủ kín những hòn đảo giữa biển mây.<br>Mây phải tìm lại ánh sáng, từng đốm một.</p>
-    <button id="begin" class="primary">BẮT ĐẦU HÀNH TRÌNH <span>→</span></button>
-    <button id="open-settings" class="text-button">CÀI ĐẶT</button>
-    <div class="footer-note">WASD di chuyển · Space nhảy · Shift lướt · E thắp đèn · Q tỏa sáng</div>
+    <div class="screen-frame">
+      <div class="corner-ornament top-left"></div>
+      <div class="corner-ornament top-right"></div>
+      <div class="corner-ornament bottom-left"></div>
+      <div class="corner-ornament bottom-right"></div>
+
+      <div class="eyebrow-badge">HUYỀN THOẠI ĐẢO SƯƠNG</div>
+      <h1 class="game-title">
+        <span class="title-sub">BẢO VỆ ÁNH SÁNG VÀNG</span>
+        ĐẢO ĐÈN<br><em>LỒNG</em>
+      </h1>
+      <p class="intro">
+        Sương đen bủa vây những hải đảo giữa biển mây tĩnh lặng.<br>
+        Nhập vai <strong>Mây</strong>, thu gom đom đóm, châm nhiên liệu và giữ những ngọn bảo đăng cổ kính sáng tới bình minh.
+      </p>
+
+      <div class="menu-actions">
+        <button id="begin" class="primary-btn">
+          <span>BẮT ĐẦU HÀNH TRÌNH</span>
+          <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+        <button id="open-settings" class="secondary-btn">CÀI ĐẶT HỆ THỐNG</button>
+      </div>
+
+      <div class="footer-note">
+        <div class="keys-guide">
+          <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Di chuyển</span>
+          <span><kbd>Space</kbd> Nhảy</span>
+          <span><kbd>Shift</kbd> Lướt</span>
+          <span><kbd>E</kbd> Thắp Đèn</span>
+          <span><kbd>Q</kbd> Tỏa Sáng</span>
+          <span><kbd>P</kbd>/<kbd>Esc</kbd> Tạm dừng</span>
+        </div>
+      </div>
+    </div>
   </main>
 
+  <!-- Story Night Intro Screen -->
   <main id="intro" class="screen hidden">
-    <div class="eyebrow" id="night-label">ĐÊM 1 · ĐẢO BẾN</div>
-    <h2 id="intro-title">Đèn đã tắt</h2>
-    <p id="intro-copy">Ông Đăng: “Đom đóm vẫn còn quanh đảo. Hãy mang ánh sáng về những ngọn đèn.”</p>
-    <button id="start-night" class="primary">ĐI VÀO SƯƠNG <span>→</span></button>
+    <div class="screen-frame dialog-frame">
+      <div class="dialog-avatar">
+        <div class="avatar-ring"></div>
+        <div class="avatar-img">🏮</div>
+      </div>
+      <div class="eyebrow-badge" id="night-label">ĐÊM 1 · ĐẢO BẾN</div>
+      <h2 id="intro-title" class="dialog-title">Đèn đã tắt</h2>
+      <div class="quote-box">
+        <p id="intro-copy">Ông Đăng: “Đom đóm vẫn còn quanh đảo. Hãy mang ánh sáng về những ngọn đèn.”</p>
+      </div>
+      <button id="start-night" class="primary-btn pulse-glow">
+        <span>BƯỚC VÀO SƯƠNG ĐÊM</span>
+        <svg class="btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </button>
+    </div>
   </main>
 
+  <!-- Pause Screen -->
   <main id="pause" class="panel hidden">
-    <div class="eyebrow">TẠM DỪNG · <span id="pause-night">ĐÊM 1</span></div>
-    <h2>Nghe tiếng đảo thở.</h2>
-    <button id="resume" class="primary">TIẾP TỤC</button>
-    <button id="replay" class="secondary">CHƠI LẠI ĐÊM</button>
-    <button id="pause-settings" class="text-button">CÀI ĐẶT</button>
-    <button id="to-menu" class="text-button">VỀ MENU</button>
+    <div class="panel-frame">
+      <div class="eyebrow-badge">TẠM DỪNG</div>
+      <div class="pause-tag" id="pause-night">ĐÊM 1</div>
+      <h2 class="panel-title">Tĩnh Lặng Giữa Biển Mây</h2>
+      <div class="panel-buttons">
+        <button id="resume" class="primary-btn">TIẾP TỤC</button>
+        <button id="replay" class="secondary-btn">CHƠI LẠI ĐÊM NÀY</button>
+        <button id="pause-settings" class="tertiary-btn">CÀI ĐẶT</button>
+        <button id="to-menu" class="tertiary-btn danger-hover">VỀ MENU CHÍNH</button>
+      </div>
+    </div>
   </main>
 
+  <!-- Settings Screen -->
   <main id="settings" class="panel hidden">
-    <div class="eyebrow">CÀI ĐẶT</div><h2>Nhịp điệu của bạn</h2>
-    <label>Âm lượng <output id="volume-value">35%</output><input id="volume" type="range" min="0" max="100" value="35"></label>
-    <label>Độ nhạy chuột <output id="sensitivity-value">1.0×</output><input id="sensitivity" type="range" min="30" max="200" value="100"></label>
-    <button id="settings-back" class="secondary">QUAY LẠI</button>
+    <div class="panel-frame">
+      <div class="eyebrow-badge">HỆ THỐNG</div>
+      <h2 class="panel-title">Tuỳ Chỉnh Trải Nghiệm</h2>
+
+      <div class="setting-row">
+        <div class="setting-meta">
+          <span class="setting-name">Âm lượng nhạc nền & Hiệu ứng</span>
+          <output id="volume-value" class="setting-val">35%</output>
+        </div>
+        <input id="volume" type="range" min="0" max="100" value="35" class="custom-slider">
+      </div>
+
+      <label class="setting-toggle" for="colorblind">
+        <span>
+          <strong>Bảng màu dễ phân biệt</strong>
+          <small>Viền xanh lam, cảnh báo trắng và ký hiệu trực quan.</small>
+        </span>
+        <input id="colorblind" type="checkbox">
+        <span class="toggle-track" aria-hidden="true"><span></span></span>
+      </label>
+
+      <div class="setting-row">
+        <div class="setting-meta">
+          <span class="setting-name">Độ nhạy góc nhìn camera</span>
+          <output id="sensitivity-value" class="setting-val">1.0×</output>
+        </div>
+        <input id="sensitivity" type="range" min="30" max="200" value="100" class="custom-slider">
+      </div>
+
+      <button id="settings-back" class="secondary-btn">LƯU & QUAY LẠI</button>
+    </div>
   </main>
 
+  <!-- Result Screen -->
   <main id="result" class="screen hidden">
-    <div class="eyebrow" id="result-label">ĐÊM 1 · KẾT QUẢ</div>
-    <h2 id="result-title">Một ngọn đèn đã thức.</h2>
-    <p id="result-copy"></p>
-    <button id="result-action" class="primary">TIẾP TỤC <span>→</span></button>
-    <button id="result-replay" class="secondary">CHƠI LẠI ĐÊM</button>
+    <div class="screen-frame result-frame">
+      <div class="eyebrow-badge" id="result-label">ĐÊM 1 · KẾT QUẢ</div>
+      <h2 id="result-title" class="result-heading">Bình minh đã thức giấc</h2>
+      <p id="result-copy" class="result-details"></p>
+
+      <div class="result-actions">
+        <button id="result-action" class="primary-btn pulse-glow">TIẾP TỤC HÀNH TRÌNH →</button>
+        <button id="result-replay" class="secondary-btn">CHƠI LẠI ĐÊM</button>
+      </div>
+    </div>
   </main>
-  <div class="controls-hint hidden" id="controls-hint">WASD di chuyển <i>·</i> Space nhảy <i>·</i> Shift lướt <i>·</i> E tương tác <i>·</i> Q tỏa sáng <i>·</i> Esc tạm dừng</div>
+
+  <div class="controls-hint hidden" id="controls-hint">
+    <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Di chuyển</span>
+    <span><kbd>Space</kbd> Nhảy</span>
+    <span><kbd>Shift</kbd> Lướt</span>
+    <span><kbd>E</kbd> Nạp Đèn</span>
+    <span><kbd>Q</kbd> Tỏa Sáng</span>
+    <span><kbd>P</kbd> Tạm dừng</span>
+  </div>
+
   <script type="module" src="src/web/game.mjs"></script>
 </body>
 </html>

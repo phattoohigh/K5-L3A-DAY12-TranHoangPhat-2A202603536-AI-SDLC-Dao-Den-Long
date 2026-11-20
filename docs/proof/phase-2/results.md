@@ -12,7 +12,7 @@ Date: 2026-11-20 (Asia/Ho_Chi_Minh)
 
 ## Not verified / unavailable
 
-- Phase 1 regression and hidden tests: unavailable because this checkout contains no Phase 1 game source and no `phase-1` Git tag. The three existing local commits are CP0 setup, not a Phase 1 baseline.
+- At the Phase 2 cutoff, a distinct pre-Ticket-02 Phase 1 game commit was unavailable, so a true before/after regression could not be reconstructed. A `phase-1` tag and verification record were added afterward; this does not retroactively create an independent Phase 1 implementation baseline. Hidden tests remain unavailable.
 - The ticket's exact 1280×720 sustained 30 FPS target has not been measured.
 - Browser pause/resume was not confirmed in the visual smoke check. Pause, cooldown, and wall-tick semantics are covered by headless unit tests; UI settings, campaign completion, exact pixel palette tolerance, audio mix, and all terrain/AI edge cases still need acceptance review.
 - This is an implementation against the available Ticket-02 Contract v1.1 details. Compatibility with grader-only scenarios is unknown.

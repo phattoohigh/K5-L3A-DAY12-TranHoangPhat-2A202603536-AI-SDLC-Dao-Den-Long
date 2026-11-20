@@ -4,14 +4,14 @@ import { createGame, runHeadless, stepGame } from "../src/sim.mjs";
 
 const quiet = { random_motes: false, random_shades: false, random_drifters: false, wind_enabled: false, motes: [], shades: [], drifters: [] };
 
-test("Contract 1.1: starts with the selected night, 20 motes, and standard clocks", () => {
+test("Contract 1.2: starts with the selected night, 20 motes, and shortened clocks", () => {
   const g1 = createGame({ night: 1 });
   const g2 = createGame({ night: 2 });
   const g3 = createGame({ night: 3 });
   assert.equal(g1.motes.length, 20);
-  assert.equal(g1.timeLeftTicks, 18_000);
-  assert.equal(g2.timeLeftTicks, 19_800);
-  assert.equal(g3.timeLeftTicks, 21_600);
+  assert.equal(g1.timeLeftTicks, 14_400);
+  assert.equal(g2.timeLeftTicks, 16_200);
+  assert.equal(g3.timeLeftTicks, 18_000);
   assert.equal(g2.lanterns.length, 6);
   assert.equal(g3.lanterns.length, 7);
   assert.deepEqual(g3.player.pos, [0, 6, 0]);
@@ -31,7 +31,7 @@ test("interaction deposits to the nearest lantern and lights it at ten", () => {
   assert.equal(g.lanterns.find(x => x.id === "L2").lit, true);
   assert.equal(g.lanterns.find(x => x.id === "L1").deposited, 7);
   assert.equal(g.player.carried, 4);
-  assert.equal(g.score, 110);
+  assert.equal(g.score, 105);
 });
 
 test("pulse spends three motes, hits a 3D target, and applies stun", () => {
@@ -56,7 +56,7 @@ test("pause advances wall ticks but freezes simulation time and resumes on a fre
   stepGame(g, { pause: true });
   assert.equal(g.state, "paused");
   assert.equal(g.simTick, 0);
-  assert.equal(g.timeLeftTicks, 18_000);
+  assert.equal(g.timeLeftTicks, 14_400);
   stepGame(g, { pause: false });
   stepGame(g, { pause: true });
   assert.equal(g.state, "playing");
@@ -163,7 +163,59 @@ test("headless pause consumes wall ticks but resumes simulation from inputs", ()
   ] });
   assert.equal(game.tick, 5);
   assert.equal(game.simTick, 3);
-  assert.equal(game.timeLeftTicks, 18_000 - 3);
+  assert.equal(game.timeLeftTicks, 14_400 - 3);
   assert.ok(output.some(row => row.type === "event" && row.name === "paused"));
   assert.ok(output.some(row => row.type === "event" && row.name === "resumed"));
+});
+
+test("lit lantern fuel decays exactly, goes out, and can be relit for five motes", () => {
+  const g = createGame({ scenario: { ...quiet, player: { pos: [0, 0, 0], carried: 5 }, lanterns: [{ id: "L1", pos: [1, 0, 0], lit: true, fuel: 0.1, ever_lit: true }] } });
+  for (let i = 0; i < 6; i++) stepGame(g, {});
+  assert.equal(g.lanterns[0].lit, false);
+  assert.equal(g.lanterns[0].deposited, 0);
+  assert.ok(g.events.some(e => e.name === "lantern_out"));
+  stepGame(g, { interact: true });
+  assert.equal(g.lanterns[0].lit, true);
+  assert.equal(g.lanterns[0].relitCount, 1);
+  assert.equal(g.player.carried, 0);
+  assert.equal(g.score, 65);
+});
+
+test("refuel uses the minimum motes and scores five each", () => {
+  const g = createGame({ scenario: { ...quiet, player: { pos: [0, 0, 0], carried: 4 }, lanterns: [{ id: "L1", pos: [1, 0, 0], lit: true, fuel: 72, ever_lit: true }] } });
+  const first = stepGame(g, { interact: true });
+  assert.equal(g.player.carried, 1);
+  assert.ok(g.lanterns[0].fuelUnits / 60 > 99.9);
+  assert.equal(g.score, 15);
+  assert.ok(first.some(e => e.name === "refuel" && e.data.amount === 3));
+});
+
+test("successful lights grow capacity by two up to twenty", () => {
+  const g = createGame({ scenario: { ...quiet, player: { pos: [0, 0, 0], carried: 10, successful_lights: 3 }, motes: [[0, 0, 0]] } });
+  stepGame(g, {});
+  assert.equal(g.player.carried, 11);
+  const snap = runHeadless({ ticks: 0, scenario: { ...quiet, player: { successful_lights: 3 } } }).output[0];
+  assert.equal(snap.player.capacity, 16);
+});
+
+test("shade drains weak lantern, pulse grants total fifteen, and refuel restores safety", () => {
+  const g = createGame({ scenario: { ...quiet, player: { pos: [0, 0, 10], carried: 3 }, lanterns: [{ id: "L1", pos: [0, 0, 0], lit: true, fuel: 20 }], shades: [{ id: "S1", pos: [1, 0, 0], state: "drain", target_lantern_id: "L1" }] } });
+  stepGame(g, {});
+  assert.equal(g.shades[0].state, "drain");
+  const fuel = g.lanterns[0].fuelUnits;
+  assert.equal(fuel, 20 * 60 - 6);
+  g.player.pos = [0, 0, 4.5];
+  stepGame(g, { pulse: true });
+  assert.equal(g.shades[0].state, "stunned");
+  assert.equal(g.score, 15);
+});
+
+test("dawn requires sixty percent lit and never ends early", () => {
+  const lanterns = [1, 2, 3, 4, 5].map(i => ({ id: `L${i}`, lit: i <= 3, fuel: 100, ever_lit: i <= 3 }));
+  const g = createGame({ scenario: { ...quiet, time_left_s: 2 / 60, lanterns } });
+  stepGame(g, {});
+  assert.equal(g.state, "playing");
+  stepGame(g, {});
+  assert.equal(g.state, "won");
+  assert.ok(g.events.some(e => e.name === "game_over" && e.data.reason === "dawn_survived"));
 });

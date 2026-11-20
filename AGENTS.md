@@ -5,4 +5,6 @@
 - Keep gameplay simulation independent of rendering and use fixed 60 Hz ticks.
 - For the headless contract, preserve deterministic output for the same seed, scenario, and inputs. Do not fake or hand-edit evidence.
 - Before product implementation, run the CP0 smoke command: `node tools/cp0/hello-headless.mjs`.
+- Before finishing a change, run `npm run build && npm test`; do not claim completion while either command is red.
+- Phase 3 uses Contract v1.2: lantern fuel and dawn survival replace permanent lights and `all_lit` victory.
 - Record assumptions and real verification outputs under `docs/notes/` and `docs/proof/`.

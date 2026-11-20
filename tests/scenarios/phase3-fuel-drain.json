@@ -1,0 +1,16 @@
+{
+  "random_motes": false,
+  "random_shades": false,
+  "random_drifters": false,
+  "wind_enabled": false,
+  "time_left_s": 3,
+  "player": { "pos": [0, 0, 10], "carried": 3, "successful_lights": 2 },
+  "motes": [],
+  "drifters": [],
+  "lanterns": [
+    { "id": "L1", "pos": [0, 0, 0], "lit": true, "fuel": 20, "ever_lit": true }
+  ],
+  "shades": [
+    { "id": "S1", "pos": [1, 0, 0], "state": "drain", "target_lantern_id": "L1" }
+  ]
+}

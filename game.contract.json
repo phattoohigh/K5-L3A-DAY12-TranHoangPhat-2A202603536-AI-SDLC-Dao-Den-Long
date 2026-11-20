@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.1",
+  "contract_version": "1.2",
   "team": "2A202603536-TranHoangPhat",
   "build_cmd": "npm run build",
   "run_cmd": "npm run serve",
@@ -7,6 +7,7 @@
   "tuning": {
     "player_speed": 6.0,
     "carry_capacity": 10,
+    "capacity_max": 20,
     "lantern_cost": 10,
     "lantern_count_night1": 5,
     "pickup_radius": 1.0,
@@ -14,9 +15,16 @@
     "pulse_cost": 3,
     "pulse_radius": 5.0,
     "pulse_stun_s": 2.0,
-    "night1_duration_s": 300,
-    "night2_duration_s": 330,
-    "night3_duration_s": 360,
+    "night1_duration_s": 240,
+    "night2_duration_s": 270,
+    "night3_duration_s": 300,
+    "fuel_max": 100,
+    "fuel_decay_per_s": 1.0,
+    "fuel_per_mote": 10,
+    "relight_cost": 5,
+    "win_ratio": 0.6,
+    "drain_per_s": 5,
+    "low_fuel_threshold": 30,
     "flames": 3,
     "invuln_s": 1.5,
     "hit_drop_ratio": 0.5,
@@ -26,10 +34,14 @@
     "dash_duration_s": 0.2,
     "dash_cooldown_s": 1.5,
     "score": {
-      "deposit_per_mote": 10,
+      "deposit_per_mote": 5,
       "lantern_lit": 100,
+      "lantern_relit": 40,
+      "shade_hit_while_draining": 15,
       "shade_hit_by_pulse": 5,
-      "seconds_remaining_multiplier": 2,
+      "dawn_per_lit_lantern": 50,
+      "dawn_fuel_floor": true,
+      "seconds_remaining_multiplier": 0,
       "flame_remaining": 50
     }
   }
