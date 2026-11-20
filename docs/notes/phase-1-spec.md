@@ -31,6 +31,17 @@ Phase 1 implements PRD-0: a playable Night 1 single-island game with:
 | Score | 10 pts per mote deposited per lantern |
 | Determinism | Same seed + scenario + inputs → byte-for-byte identical JSONL |
 
+## Correction Note (Audit Verification)
+
+> **Đính chính trung thực (2026-11-20):** Tag `phase-1` (`a7669cb`) được gắn hồi tố sau commit `phase-2` (`f5e75ed`), nên mã nguồn và `game.contract.json` tại tag `phase-1` thực tế sử dụng **Contract v1.1** (thông số chuẩn hóa của Ticket-02), KHÔNG phải các con số giả định cũ ở bảng trên. Đối chiếu đúng với mã nguồn tại tag `phase-1`:
+> - Bán kính đảo Đêm 1: `40 m` (không phải `25 m`); rơi khi `y < -10` (không phải `> 30 m`).
+> - Vòng đom đóm 2: `16` điểm ở `r = 33 m` (tổng 24 điểm hợp lệ, khởi đầu 20 đom đóm).
+> - Tốc độ Mây: `6.0 m/s`; tốc độ Bóng Mực: `4.0 m/s` (không có trạng thái `flee`, dùng `spawning/wander/chase/recoil/stunned`).
+> - Tỏa Sáng (Pulse): bán kính `5.0 m`, cooldown `180 ticks` (`3 s`), choáng `120 ticks` (`2 s`).
+> - Điểm: `+10`/mote nạp, `+100`/đèn thắp, `+5`/Bóng Mực trúng Pulse, thưởng thắng `floor(seconds_left)*2 + 50*flames`.
+>
+> Theo `RULES.md` mục 7, lịch sử git và tag cũ không bị viết lại (no force-push). Xem chi tiết phân tích sai lệch này tại [`ai-log-and-eval.md`](ai-log-and-eval.md).
+
 ## Deliverables
 
 - `src/sim.mjs` — deterministic simulation (no rendering imports)

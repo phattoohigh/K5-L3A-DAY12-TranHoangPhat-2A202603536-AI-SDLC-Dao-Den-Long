@@ -43,9 +43,17 @@ Source: Lab board, Ticket-02, Contract v1.1. Contract v1.1 replaces Phase 1's se
 - [ ] Full-night headless run completes in ≤30 s; regular game averages ≥30 FPS at 1280×720.
 - [ ] Acceptance results and proof are recorded without claiming unverified criteria.
 
-## Recorded implementation limitations
+## Recorded implementation limitations & audit fixes
 
-The repository had no game source or `phase-1` tag when Ticket-02 became available. Therefore a before/after Phase 1 regression against the student's Phase 1 build cannot be run. This implementation recreates the PRD-0 core using Ticket-02's standard values; hidden-test compatibility remains unverified. See [`../proof/phase-2/results.md`](../proof/phase-2/results.md) for measured evidence and remaining checks. Do not read the unchecked criteria above as acceptance claims; they are the ticket checklist, and completion status is recorded separately in the results report.
+The repository had no standalone pre-Ticket-02 Phase 1 game commit when Ticket-02 became available; tag `phase-1` was added afterward and points to a child of `phase-2`. Therefore a true before/after Phase 1 regression against an independent Phase 1 build cannot be reconstructed without rewriting history (which `RULES.md` forbids).
+
+During the Phase 3 independent audit (see [`ai-log-and-eval.md`](ai-log-and-eval.md)), the following Phase 2 defects were discovered and fixed with new automated regression tests in `tests/sim.test.mjs` and `tools/verify.mjs`:
+- Launch pad gravity was disabled while `launched` (caused infinite upward flight in `docs/proof/phase-2/night2-charm-pad.jsonl`) → fixed ballistic gravity; both Night 2 and Night 3 pads now land cleanly on target surfaces.
+- Night 3 sheer cliffs (`Y=3` and `Y=6`) allowed instant step-up teleportation → fixed horizontal step-height collision (`maxStepUp = 0.5 m`) while preserving smooth ascent on the 30°/150° ramps.
+- Night 3 fall respawned at `[0, 0, 0]` and decremented `invuln` during the 60-tick wait → fixed respawn to `[0, 6, 0]`, locked actions during respawn, and preserved the full 90-tick invulnerability after respawn.
+- WebGL renderer deviated from `0.15 + 0.55×(lit/total)` environment lighting and drew railings on the unrailed Night 2 bridge → fixed to match the specification.
+
+Remaining unverified items at Phase 2: controlled sustained 1280×720 ≥30 FPS benchmark and hidden grader scenarios. See [`../proof/phase-2/results.md`](../proof/phase-2/results.md) and [`../proof/phase-3/results.md`](../proof/phase-3/results.md) for measured evidence.
 
 ## Assumptions where Ticket-02 is silent
 
