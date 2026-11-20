@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { performance } from "node:perf_hooks";
 
 function run(cmd, args, label) {
@@ -23,9 +25,12 @@ assert.equal(JSON.parse(cp0.stdout).status, "ready");
 run("npm", ["run", "build"], "npm run build");
 run("npm", ["test"], "npm test");
 
-// 3. Contract v1.2 declaration sanity
+// 3. Contract v1.3 declaration sanity
 const contract = JSON.parse(fs.readFileSync("game.contract.json", "utf8"));
-assert.equal(contract.contract_version, "1.2");
+assert.equal(contract.contract_version, "1.3");
+assert.equal(contract.run_cmd, "node src/server.mjs");
+assert.equal(contract.bench_cmd, "node src/bench.mjs");
+assert.equal(contract.soak_cmd, "node --jitless --max-semi-space-size=1 --expose-gc src/soak.mjs");
 assert.equal(contract.tuning.night1_duration_s, 240);
 assert.equal(contract.tuning.night2_duration_s, 270);
 assert.equal(contract.tuning.night3_duration_s, 300);
@@ -41,9 +46,9 @@ assert.equal(drainRows[0].player.capacity, 14);
 assert.equal(drainRows[0].lanterns[0].fuel, 20);
 assert.ok(drainRows.some(r => r.type === "event" && r.name === "fuel_drain"));
 
-// 5. Phase 3 full Night 3 headless performance (< 30 s budget)
+// 5. Full Night 3 headless performance (< 30 s budget)
 const perfArgs = ["src/headless.mjs", "--night", "3", "--seed", "42", "--scenario", "tests/scenarios/night3-performance.json", "--ticks", "18000", "--snapshot-every", "18000"];
-const perf = run(process.execPath, perfArgs, "Phase 3 Night 3 full-run performance");
+const perf = run(process.execPath, perfArgs, "Night 3 full-run performance");
 assert.ok(perf.elapsedMs < 30_000, `Full Night 3 run took ${perf.elapsedMs} ms (>= 30000 ms)`);
 const perfRows = perf.stdout.trim().split("\n").map(line => JSON.parse(line));
 assert.equal(perfRows[perfRows.length - 1].state, "lost");
@@ -57,10 +62,27 @@ assert.equal(lastPadSnap.player.grounded, true, "Player must land after launch p
 assert.equal(lastPadSnap.player.pos[1], 0, "Player must land on island surface Y=0");
 assert.ok(Math.hypot(lastPadSnap.player.pos[0] - 70, lastPadSnap.player.pos[2]) <= 28, "Player must land on Island 2");
 
+// 7. Contract v1.3 leaderboard export CLI smoke check
+const tmpOut = path.join(os.tmpdir(), `ddl-verify-lb-${process.pid}.json`);
+run(process.execPath, ["src/server.mjs", "--export-leaderboard", tmpOut], "Leaderboard export CLI");
+const exported = JSON.parse(fs.readFileSync(tmpOut, "utf8"));
+assert.ok(Array.isArray(exported.entries), "Exported leaderboard must contain entries array");
+fs.rmSync(tmpOut, { force: true });
+
+// 8. Contract v1.3 soak test smoke (3 nights)
+const tmpSoak = path.join(os.tmpdir(), `ddl-verify-soak-${process.pid}.json`);
+run(process.execPath, ["--jitless", "--max-semi-space-size=1", "--expose-gc", "src/soak.mjs", "--seed", "7", "--nights", "3", "--out", tmpSoak], "Soak test 3-night smoke");
+const soakData = JSON.parse(fs.readFileSync(tmpSoak, "utf8"));
+assert.equal(soakData.crashes, 0);
+assert.equal(soakData.nights, 3);
+assert.ok(soakData.mem_end_mb <= soakData.mem_start_mb * 1.2, `Soak memory grew >20%: ${soakData.mem_start_mb} -> ${soakData.mem_end_mb}`);
+fs.rmSync(tmpSoak, { force: true });
+
 process.stdout.write(JSON.stringify({
   status: "ok",
   contract_version: contract.contract_version,
   determinism: "identical",
   night3_full_run_ms: perf.elapsedMs,
   pad_landing_pos: lastPadSnap.player.pos,
+  soak_3nights_mem_ratio: Math.round((soakData.mem_end_mb / soakData.mem_start_mb) * 100) / 100,
 }, null, 2) + "\n");

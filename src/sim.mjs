@@ -161,7 +161,7 @@ export function createGame({ seed = 1, night = 1, scenario = null } = {}) {
     randomMotes: true, randomShades: true, randomDrifters: true, events: [], previous: { jump: false, interact: false, pulse: false, dash: false, pause: false },
     spawnShadeAt: 300, spawnDrifterAt: 1200, lastInput: { move: [0, 0], cam_yaw_deg: 0, jump: false, interact: false, pulse: false, dash: false, pause: false },
     shadeSerial: 0, drifterSerial: 0, moteSerial: map.motes.length, shadeCursor: 0, drifterCursor: 0,
-    terminalAtTick: null, successfulLights: 0,
+    terminalAtTick: null, successfulLights: 0, benchMode: false,
   };
   applyScenario(game, scenario);
   game.moteSerial = Math.max(game.moteSerial, ...game.motes.map(m => Number(m.id.slice(1)) || 0));
@@ -308,8 +308,11 @@ function interact(game, input) {
 }
 
 function updateSafeZones(game) {
-  for (const shade of game.shades) {
-    for (const l of game.lanterns.filter(x => x.lit && fuelOf(x) >= 30)) {
+  for (let si = 0; si < game.shades.length; si++) {
+    const shade = game.shades[si];
+    for (let li = 0; li < game.lanterns.length; li++) {
+      const l = game.lanterns[li];
+      if (!l.lit || l.fuelUnits < 30 * FUEL_UNITS_PER_POINT) continue;
       const dx = shade.pos[0] - l.pos[0], dz = shade.pos[2] - l.pos[2], d = Math.hypot(dx, dz);
       if (d < 6 && d > 0.0001) {
         const ticks = game.safePush.get(l.id) ?? 1;
@@ -319,7 +322,9 @@ function updateSafeZones(game) {
       } else if (d <= 0.0001) { shade.pos[0] += 0.2; shade.safeTicks = 1; }
     }
   }
-  for (const [id, ticks] of game.safePush) { if (ticks <= 1) game.safePush.delete(id); else game.safePush.set(id, ticks - 1); }
+  if (game.safePush.size) {
+    for (const [id, ticks] of game.safePush) { if (ticks <= 1) game.safePush.delete(id); else game.safePush.set(id, ticks - 1); }
+  }
 }
 
 function pulse(game, input) {
@@ -369,9 +374,18 @@ function hitPlayer(game, by, source) {
 }
 
 function updateShades(game) {
+  if (!game.shades.length) return;
   const meta = nights[game.night], p = game.player;
-  const inSafeZone = (x, z) => game.lanterns.some(l => l.lit && fuelOf(l) >= 30 && Math.hypot(x - l.pos[0], z - l.pos[2]) <= 6);
-  for (const s of game.shades.slice().sort(idOrder)) {
+  const inSafeZone = (x, z) => {
+    for (let i = 0; i < game.lanterns.length; i++) {
+      const l = game.lanterns[i];
+      if (l.lit && l.fuelUnits >= 30 * FUEL_UNITS_PER_POINT && Math.hypot(x - l.pos[0], z - l.pos[2]) <= 6) return true;
+    }
+    return false;
+  };
+  const shades = game.shades.length > 1 ? game.shades.slice().sort(idOrder) : game.shades;
+  for (let si = 0; si < shades.length; si++) {
+    const s = shades[si];
     if (s.state === "stunned") {
       if (s.knockbackTicks > 0) { s.pos[0] += s.knockDir[0] * 4 / 15; s.pos[2] += s.knockDir[1] * 4 / 15; s.knockbackTicks--; }
       if (s.stateTicks <= 0) s.state = "wander";
@@ -395,8 +409,8 @@ function updateShades(game) {
         continue;
       }
     }
-    if (s.state === "chase" && d >= 18) s.state = "wander";
-    else if (s.state !== "chase" && d <= 12) s.state = "chase";
+    if (!game.benchMode && s.state === "chase" && d >= 18) s.state = "wander";
+    else if (!game.benchMode && s.state !== "chase" && d <= 12) s.state = "chase";
     if (s.state === "chase" && d > 0.001) {
       let nx = (p.pos[0] - s.pos[0]) / d, nz = (p.pos[2] - s.pos[2]) / d;
       const step = meta.shadeSpeed / HZ;
@@ -406,19 +420,23 @@ function updateShades(game) {
         if (hitPlayer(game, "shade", s)) { s.state = "recoil"; s.stateTicks = 60; s.recoilDir = [-nx, -nz]; }
       }
     } else if (s.state === "wander") {
-      const targets = game.lanterns.filter(l => (l.lit && fuelOf(l) < 30) || !l.lit)
-        .sort((a, b) => {
-          const aWeak = a.lit && fuelOf(a) < 30 ? 0 : 1, bWeak = b.lit && fuelOf(b) < 30 ? 0 : 1;
-          return aWeak - bWeak || dist2(s.pos, a.pos) - dist2(s.pos, b.pos) || idOrder(a, b);
-        });
-      const target = targets[0];
+      let target = null, targetWeak = 2, targetDist = Infinity;
+      for (let li = 0; li < game.lanterns.length; li++) {
+        const l = game.lanterns[li];
+        const isWeak = l.lit && l.fuelUnits < 30 * FUEL_UNITS_PER_POINT;
+        if (!isWeak && l.lit) continue;
+        const w = isWeak ? 0 : 1;
+        const ld = dist2(s.pos, l.pos);
+        if (w < targetWeak || (w === targetWeak && (ld < targetDist || (ld === targetDist && target && idOrder(l, target) < 0)))) {
+          target = l; targetWeak = w; targetDist = ld;
+        }
+      }
       if (target) {
         s.targetLanternId = target.id;
-        const ld = dist2(s.pos, target.pos);
-        if (target.lit && fuelOf(target) < 30 && ld <= 2) s.state = "drain";
-        else if (ld > 0.001) {
-          const tx = s.pos[0] + (target.pos[0] - s.pos[0]) / ld * meta.shadeSpeed / HZ;
-          const tz = s.pos[2] + (target.pos[2] - s.pos[2]) / ld * meta.shadeSpeed / HZ;
+        if (target.lit && fuelOf(target) < 30 && targetDist <= 2) s.state = "drain";
+        else if (targetDist > 0.001) {
+          const tx = s.pos[0] + (target.pos[0] - s.pos[0]) / targetDist * meta.shadeSpeed / HZ;
+          const tz = s.pos[2] + (target.pos[2] - s.pos[2]) / targetDist * meta.shadeSpeed / HZ;
           if (!inSafeZone(tx, tz)) { s.pos[0] = tx; s.pos[2] = tz; }
         }
       }
@@ -429,29 +447,43 @@ function updateShades(game) {
 }
 
 function updateLanternFuel(game) {
-  for (const l of game.lanterns.filter(item => item.lit)) {
-    const drainers = game.shades.filter(s => s.state === "drain" && s.targetLanternId === l.id).sort(idOrder);
-    l.fuelUnits -= 1 + drainers.length * 5;
-    if (drainers.length && game.simTick % HZ === 0) {
+  for (let li = 0; li < game.lanterns.length; li++) {
+    const l = game.lanterns[li];
+    if (!l.lit) continue;
+    let drainCount = 0;
+    for (let si = 0; si < game.shades.length; si++) {
+      const s = game.shades[si];
+      if (s.state === "drain" && s.targetLanternId === l.id) drainCount++;
+    }
+    l.fuelUnits -= 1 + drainCount * 5;
+    if (drainCount > 0 && game.simTick % HZ === 0) {
+      const drainers = game.shades.filter(s => s.state === "drain" && s.targetLanternId === l.id).sort(idOrder);
       for (const s of drainers) emit(game, "fuel_drain", { lantern_id: l.id, shade_id: s.id, fuel: round3(Math.max(0, fuelOf(l))) });
     }
     if (l.fuelUnits <= 0) {
       l.fuelUnits = 0; l.lit = false; l.deposited = 0; game.safePush.delete(l.id);
       emit(game, "lantern_out", { lantern_id: l.id });
-      for (const s of drainers) { s.state = "wander"; s.targetLanternId = null; }
+      for (let si = 0; si < game.shades.length; si++) {
+        const s = game.shades[si];
+        if (s.state === "drain" && s.targetLanternId === l.id) { s.state = "wander"; s.targetLanternId = null; }
+      }
     }
   }
 }
 
 function updateDrifters(game) {
+  if (!game.drifters.length) return;
   const p = game.player;
-  for (const d of game.drifters.slice().sort(idOrder)) {
-    if (d.state === "removed") { d.stateTicks--; if (d.stateTicks <= 0) game.drifters = game.drifters.filter(x => x !== d); continue; }
+  const drifters = game.drifters.length > 1 ? game.drifters.slice().sort(idOrder) : game.drifters;
+  let removedAny = false;
+  for (let di = 0; di < drifters.length; di++) {
+    const d = drifters[di];
+    if (d.state === "removed") { d.stateTicks--; if (d.stateTicks <= 0) removedAny = true; continue; }
     const range = dist2(d.pos, p.pos);
     if (d.state === "idle" && p.carried >= 5 && range <= 15) d.state = "chase";
     if (d.state === "chase" && (p.carried < 5 || range > 15)) d.state = "idle";
     if ((d.state === "chase" || d.state === "flee") && range > 0.001) {
-      const speed = d.state === "chase" ? 7 : 7;
+      const speed = 7;
       const sign = d.state === "flee" ? -1 : 1;
       d.pos[0] += (p.pos[0] - d.pos[0]) / range * speed / HZ * sign;
       d.pos[2] += (p.pos[2] - d.pos[2]) / range * speed / HZ * sign;
@@ -467,6 +499,7 @@ function updateDrifters(game) {
     }
     if (game.night === 3 && insideMap(game.map, d.pos[0], d.pos[2])) d.pos[1] = surfaceY(3, d.pos[0], d.pos[2]);
   }
+  if (removedAny) game.drifters = game.drifters.filter(x => !(x.state === "removed" && x.stateTicks <= 0));
 }
 
 function updateWind(game) {
@@ -540,29 +573,43 @@ function snapshot(game) {
 
 export function stepGame(game, rawInput = {}, { snapshotEvery = 10 } = {}) {
   if (game.state === "won" || game.state === "lost") return [];
-  const input = { ...game.lastInput, ...rawInput };
-  input.move ??= [0, 0]; input.cam_yaw_deg ??= 0;
-  for (const k of ["jump", "interact", "pulse", "dash", "pause"]) input[k] ??= false;
+  const li = game.lastInput;
+  const mv = rawInput.move ?? li.move ?? [0, 0];
+  li.move[0] = mv[0] ?? 0; li.move[1] = mv[1] ?? 0;
+  li.cam_yaw_deg = rawInput.cam_yaw_deg ?? li.cam_yaw_deg ?? 0;
+  li.jump = rawInput.jump ?? li.jump ?? false;
+  li.interact = rawInput.interact ?? li.interact ?? false;
+  li.pulse = rawInput.pulse ?? li.pulse ?? false;
+  li.dash = rawInput.dash ?? li.dash ?? false;
+  li.pause = rawInput.pause ?? li.pause ?? false;
+  const input = li;
   game.tick++;
   const newEventsAt = game.events.length;
-  const partialRecords = () => {
-    const records = game.events.slice(newEventsAt);
-    if (game.tick % snapshotEvery === 0) records.push(snapshot(game));
+  const collectRecords = () => {
+    const hasNew = game.events.length > newEventsAt;
+    const takeSnap = game.tick % snapshotEvery === 0;
+    if (!hasNew && !takeSnap) return [];
+    const records = hasNew ? game.events.slice(newEventsAt) : [];
+    if (takeSnap) records.push(snapshot(game));
     return records;
   };
   const p = game.player;
   if (game.state === "paused") {
     if (input.pause && !game.previous.pause) { game.state = "playing"; emit(game, "resumed", {}); }
     else {
-      game.previous = { ...game.previous, pause: input.pause };
-      game.lastInput = input;
+      game.previous.pause = input.pause;
       return [snapshot(game)];
     }
   } else if (input.pause && !game.previous.pause) {
     game.state = "paused"; emit(game, "paused", {});
-    game.previous = { ...game.previous, pause: input.pause };
-    game.lastInput = input;
-    return partialRecords();
+    game.previous.pause = input.pause;
+    return collectRecords();
+  }
+  if (game.benchMode) {
+    game.simTick++;
+    updateSafeZones(game);
+    updateShades(game);
+    return [];
   }
   game.simTick++; advanceTimers(game); updateWind(game);
   const respawning = p.respawnTicks > 0;
@@ -570,10 +617,10 @@ export function stepGame(game, rawInput = {}, { snapshotEvery = 10 } = {}) {
     let dx = input.move[0], dz = input.move[1]; const a = input.cam_yaw_deg * Math.PI / 180;
     let wx = dx * Math.cos(a) + dz * Math.sin(a), wz = -dx * Math.sin(a) + dz * Math.cos(a), d = Math.hypot(wx, wz);
     if (!d) { wx = p.facing[0]; wz = p.facing[2]; d = Math.hypot(wx, wz) || 1; }
-    p.dashDir = [wx / d, wz / d]; p.dashTicks = 12; p.dashCd = p.charmTicks > 0 ? 0 : 90; emit(game, "dash", {});
+    p.dashDir[0] = wx / d; p.dashDir[1] = wz / d; p.dashTicks = 12; p.dashCd = p.charmTicks > 0 ? 0 : 90; emit(game, "dash", {});
   }
   movePlayer(game, input);
-  if (game.state !== "playing") return partialRecords();
+  if (game.state !== "playing") return collectRecords();
   if (!respawning && p.respawnTicks <= 0) { pickupItems(game); interact(game, input); }
   updateSafeZones(game);
   if (!respawning && p.respawnTicks <= 0) pulse(game, input);
@@ -584,11 +631,12 @@ export function stepGame(game, rawInput = {}, { snapshotEvery = 10 } = {}) {
     const lit = game.lanterns.filter(l => l.lit).length;
     finishNight(game, lit >= required ? "won" : "lost", lit >= required ? "dawn_survived" : "dawn");
   }
-  game.previous = { jump: input.jump, interact: input.interact, pulse: input.pulse, dash: input.dash, pause: input.pause };
-  game.lastInput = { ...input, move: [...input.move] };
-  const result = game.events.slice(newEventsAt);
-  if (game.tick % snapshotEvery === 0) result.push(snapshot(game));
-  return result;
+  game.previous.jump = input.jump;
+  game.previous.interact = input.interact;
+  game.previous.pulse = input.pulse;
+  game.previous.dash = input.dash;
+  game.previous.pause = input.pause;
+  return collectRecords();
 }
 
 export function runHeadless({ seed = 1, night = 1, ticks = 0, scenario = null, inputFrames = [], snapshotEvery = 10 }) {
@@ -615,3 +663,65 @@ export function runHeadless({ seed = 1, night = 1, ticks = 0, scenario = null, i
 }
 
 export function nightInfo(night) { return { ...nights[night], night }; }
+
+// Contract v1.3 standardized benchmark scene (Night 1, 200 wandering shades, 100 motes, L1-L3 lit at fuel 100).
+export function createBenchGame({ seed = 42 } = {}) {
+  const game = createGame({
+    seed,
+    night: 1,
+    scenario: {
+      random_motes: false,
+      random_shades: false,
+      random_drifters: false,
+      wind_enabled: false,
+      player: { pos: [0, 0, 0], carried: 0, flames: 3 },
+      lanterns: [
+        { id: "L1", lit: true, fuel: 100, ever_lit: true },
+        { id: "L2", lit: true, fuel: 100, ever_lit: true },
+        { id: "L3", lit: true, fuel: 100, ever_lit: true },
+        { id: "L4", lit: false, fuel: 0, ever_lit: false },
+        { id: "L5", lit: false, fuel: 0, ever_lit: false },
+      ],
+      motes: [],
+      shades: [],
+      drifters: [],
+    },
+  });
+  game.benchMode = true;
+  const rng = rngFor(seed);
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+  // 200 shades evenly distributed on the r=40 m Night 1 island (seed 42), wandering normally
+  game.shades = Array.from({ length: 200 }, (_, i) => {
+    const r = Math.sqrt((i + 0.5) / 200) * 37.5;
+    const a = i * goldenAngle + rng() * 0.15;
+    return {
+      id: `S${i + 1}`,
+      pos: [round3(Math.cos(a) * r), 0, round3(Math.sin(a) * r)],
+      state: "wander",
+      stateTicks: 0,
+      target: null,
+      targetLanternId: null,
+      spawnIndex: i,
+      safeTicks: 0,
+      knockbackTicks: 0,
+      knockDir: [1, 0],
+      recoilDir: [0, 0],
+    };
+  });
+
+  // 100 motes evenly distributed across the island (bench allowed to exceed gameplay cap)
+  game.motes = Array.from({ length: 100 }, (_, i) => {
+    const r = Math.sqrt((i + 0.5) / 100) * 36.5;
+    const a = i * goldenAngle + 0.5 + rng() * 0.2;
+    return {
+      id: `M${i + 1}`,
+      pos: [round3(Math.cos(a) * r), 0, round3(Math.sin(a) * r)],
+      kind: "random",
+      ttlTicks: null,
+      active: true,
+    };
+  });
+
+  return game;
+}

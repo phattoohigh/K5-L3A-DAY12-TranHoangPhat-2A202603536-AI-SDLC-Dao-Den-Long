@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createGame, runHeadless, stepGame } from "../src/sim.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createBenchGame, createGame, runHeadless, stepGame } from "../src/sim.mjs";
+import { addLeaderboardEntry, exportLeaderboard, loadLeaderboard, validateName } from "../src/leaderboard.mjs";
 
 const quiet = { random_motes: false, random_shades: false, random_drifters: false, wind_enabled: false, motes: [], shades: [], drifters: [] };
 
@@ -373,4 +377,67 @@ test("headless CLI validates arguments, malformed inputs, and deterministic JSON
   const rows = run1.stdout.trim().split("\n").map(line => JSON.parse(line));
   assert.equal(rows[0].type, "snapshot");
   assert.equal(rows[rows.length - 1].type, "end");
+});
+
+test("Contract 1.3 benchmark scene has 200 wandering shades, 100 motes, L1-L3 lit, and no decay/damage", () => {
+  const g = createBenchGame({ seed: 42 });
+  assert.equal(g.night, 1);
+  assert.equal(g.shades.length, 200);
+  assert.equal(g.motes.length, 100);
+  assert.deepEqual(g.player.pos, [0, 0, 0]);
+  assert.deepEqual(g.lanterns.map(l => l.lit), [true, true, true, false, false]);
+  assert.deepEqual(g.lanterns.slice(0, 3).map(l => l.fuelUnits), [6000, 6000, 6000]);
+  for (let i = 0; i < 60; i++) stepGame(g, {});
+  assert.equal(g.state, "playing");
+  assert.equal(g.player.flames, 3);
+  assert.equal(g.player.carried, 0);
+  assert.deepEqual(g.lanterns.slice(0, 3).map(l => l.fuelUnits), [6000, 6000, 6000]);
+  assert.ok(g.shades.every(s => s.state === "wander"));
+});
+
+test("Contract 1.3 leaderboard validates names, keeps top 10 ordered by score then earliest achieved_at, and exports JSON", () => {
+  assert.equal(validateName("Ab").ok, false);
+  assert.equal(validateName("TooLongName13").ok, false);
+  assert.equal(validateName("Bad Name").ok, false);
+  assert.equal(validateName("May_01").ok, true);
+  assert.equal(validateName("MâyĐêm").ok, true);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ddl-lb-test-"));
+  const store = path.join(dir, "leaderboard.json");
+  const out = path.join(dir, "export.json");
+  try {
+    addLeaderboardEntry({ name: "Later", score: 500, nights_won: 2, seed: 1, achieved_at: "2026-11-20T17:10:00+07:00" }, store);
+    addLeaderboardEntry({ name: "Earlier", score: 500, nights_won: 2, seed: 2, achieved_at: "2026-11-20T17:05:00+07:00" }, store);
+    for (let i = 0; i < 10; i++) {
+      addLeaderboardEntry({ name: `Player_${i}`, score: 100 + i * 40, nights_won: 1, seed: i, achieved_at: `2026-11-20T17:0${i % 9}:00+07:00` }, store);
+    }
+    const loaded = loadLeaderboard(store);
+    assert.equal(loaded.length, 10);
+    assert.equal(loaded[0].name, "Earlier");  // 500 earlier
+    assert.equal(loaded[1].name, "Later");    // 500 later
+    assert.equal(loaded[2].name, "Player_9"); // 460
+
+    const cli = spawnSync(process.execPath, ["src/server.mjs", "--store", store, "--export-leaderboard", out], { encoding: "utf8" });
+    assert.equal(cli.status, 0);
+    const exported = JSON.parse(fs.readFileSync(out, "utf8"));
+    assert.equal(exported.entries.length, 10);
+    assert.equal(exported.entries[0].name, "Earlier");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("Contract 1.3 soak runner completes consecutive nights with zero crashes and bounded memory", () => {
+  const out = path.join(os.tmpdir(), `ddl-soak-test-${process.pid}.json`);
+  try {
+    const res = spawnSync(process.execPath, ["--jitless", "--max-semi-space-size=1", "--expose-gc", "src/soak.mjs", "--seed", "7", "--nights", "3", "--out", out], { encoding: "utf8" });
+    assert.equal(res.status, 0, res.stderr);
+    const data = JSON.parse(fs.readFileSync(out, "utf8"));
+    assert.equal(data.nights, 3);
+    assert.equal(data.crashes, 0);
+    assert.equal(data.results.length, 3);
+    assert.ok(data.mem_end_mb <= data.mem_start_mb * 1.2);
+  } finally {
+    fs.rmSync(out, { force: true });
+  }
 });

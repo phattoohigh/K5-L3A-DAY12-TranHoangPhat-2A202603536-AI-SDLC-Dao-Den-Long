@@ -1,11 +1,15 @@
 {
   "name": "dao-den-long",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node --check src/sim.mjs && node --check src/headless.mjs && node --check src/web/audio.mjs && node --check src/web/renderer.mjs && node --check src/web/game.mjs && node --check tools/verify.mjs",
+    "build": "node --check src/sim.mjs && node --check src/headless.mjs && node --check src/leaderboard.mjs && node --check src/server.mjs && node --check src/soak.mjs && node --check src/bench.mjs && node --check src/web/audio.mjs && node --check src/web/renderer.mjs && node --check src/web/game.mjs && node --check tools/verify.mjs && node --check tools/package-release.mjs",
     "test": "node --test",
     "verify": "node tools/verify.mjs",
-    "serve": "python3 -m http.server 4173"
+    "serve": "node src/server.mjs",
+    "soak": "node --jitless --max-semi-space-size=1 --expose-gc src/soak.mjs --seed 7 --nights 10 --out soak.json",
+    "bench": "node src/bench.mjs --seed 42 --duration 30 --out bench.json",
+    "package": "node tools/package-release.mjs"
   }
 }
