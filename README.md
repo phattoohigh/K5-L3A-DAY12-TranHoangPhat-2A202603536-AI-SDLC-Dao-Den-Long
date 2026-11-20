@@ -1,6 +1,6 @@
 # Đảo Đèn Lồng (v1.0.0)
 
-> **Video demo:** Đính kèm tại GitHub Release `v1.0.0` (xem mục Releases của repo public).
+> **Video demo (< 5 phút, 1280×720 MP4):** [`docs/demo/demo.mp4`](docs/demo/demo.mp4) *(cũng đính kèm trong GitHub Release `v1.0.0`)*.
 
 Game 3D góc nhìn thứ ba qua ba đêm: **Đảo Bến**, **Đảo Cau** và **Đảo Chuông**. Nhập vai **Mây**, thu gom đom đóm, châm nhiên liệu bảo đăng, đẩy lùi Bóng Mực hút dầu và Gió Lạc để giữ ít nhất 60% số đèn sáng tới bình minh.
 

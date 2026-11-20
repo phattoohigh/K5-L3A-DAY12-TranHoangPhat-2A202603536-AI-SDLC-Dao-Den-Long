@@ -60,7 +60,7 @@ Measured output (committed verbatim at [`soak.json`](../../../soak.json)):
 - Release package (`npm run package`): built standalone `dist/dao-den-long-v1.0.0.zip` (**61 KB**, zero runtime dependencies).
 - Phase 3 headless evidence diff (`docs/proof/phase-3/*.jsonl`): unchanged byte-for-byte — Phase 4 additions & 3D overhaul do not alter headless output.
 
-## 4. Remaining Manual Delivery Steps
+## 4. Video Demo & GitHub Release
 
-- **GitHub Release `v1.0.0`:** Upload `dist/dao-den-long-v1.0.0.zip` (and `demo.mp4` once recorded) on GitHub Releases for tag `v1.0.0` / `phase-4` (`gh` CLI is not installed locally).
-- **Video demo (`.mp4` < 5 phút):** Record live screen gameplay + `npm run verify` + `bench.mjs` on macOS (`Cmd+Shift+5`) and attach to Release `v1.0.0` (or `docs/demo/demo.mp4`), then place the public link at the top of `README.md`.
+- **Video demo (`.mp4`, 49 s, 1280×720 H.264, 54 MB):** Full-screen macOS capture of Chrome running live WebGL (`src/sim.mjs` + `src/web/renderer.mjs`) covering Night 1 gameplay (120 FPS, lighting L1, dash, pulse stunning draining shade, colorblind HUD & subtitles), Night 2 unrailed bridge & ballistic launch pad, Night 3 3-tier sanctuary, standardized 200-shade benchmark window, and real `npm run verify` / `npm test` (38/38 passed) / `bench.json` / `soak.json`. Committed at [`docs/demo/demo.mp4`](../../demo/demo.mp4) (also copied to `dist/demo.mp4`).
+- **GitHub Release `v1.0.0`:** Upload `dist/dao-den-long-v1.0.0.zip` and `dist/demo.mp4` on GitHub Releases for tag `v1.0.0` (`gh` CLI is not installed locally).
