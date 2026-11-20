@@ -518,7 +518,7 @@ if (BENCH_MODE) {
     ui.shadeArrow.classList.toggle("hidden", !showShadeArrow);
     if (showShadeArrow) {
       const bearing = Math.atan2(recentShadePos[0] - p.pos[0], recentShadePos[2] - p.pos[2]) - cameraYaw * Math.PI / 180;
-      ui.shadeArrow.style.left = `${50 + Math.sin(bearing) * 42}%`;
+      ui.shadeArrow.style.left = `${50 - Math.sin(bearing) * 42}%`;
       ui.shadeArrow.style.top = `${50 - Math.cos(bearing) * 34}%`;
       ui.shadeArrow.style.transform = "translate(-50%,-50%)";
     }
@@ -564,7 +564,7 @@ if (BENCH_MODE) {
     ui.arrow.classList.toggle("hidden", !urgent || dist < 16);
     if (urgent && dist >= 16) {
       const bearing = Math.atan2(urgent.pos[0] - p.pos[0], urgent.pos[2] - p.pos[2]) - cameraYaw * Math.PI / 180;
-      ui.arrow.style.left = `${50 + Math.sin(bearing) * 38}%`;
+      ui.arrow.style.left = `${50 - Math.sin(bearing) * 38}%`;
       ui.arrow.style.top = `${50 - Math.cos(bearing) * 28}%`;
       ui.arrow.style.transform = "translate(-50%,-50%)";
       ui.arrowLabel.textContent = urgent.lit ? `${urgent.id} CẠN DẦU` : `${urgent.id}`;
@@ -629,7 +629,7 @@ if (BENCH_MODE) {
         const settingsOpen = !ui.settings.classList.contains("hidden");
         const input = {
           move: [
-            (keys.has(keybinds.right) ? 1 : 0) - (keys.has(keybinds.left) ? 1 : 0),
+            (keys.has(keybinds.left) ? 1 : 0) - (keys.has(keybinds.right) ? 1 : 0),
             (keys.has(keybinds.up) ? 1 : 0) - (keys.has(keybinds.down) ? 1 : 0),
           ],
           cam_yaw_deg: cameraYaw,
@@ -637,7 +637,7 @@ if (BENCH_MODE) {
           interact: keys.has(keybinds.interact),
           pulse: keys.has(keybinds.pulse),
           dash: keys.has(keybinds.dash) || (keybinds.dash === "ShiftLeft" && keys.has("ShiftRight")),
-          pause: !settingsOpen && (keys.has(keybinds.pause) || keys.has("Escape")),
+          pause: !settingsOpen && (keys.has(keybinds.pause) || (keybinds.pause === "KeyP" && keys.has("Escape"))),
         };
         const before = game.state;
         stepGame(game, input, { snapshotEvery: 999999 });
