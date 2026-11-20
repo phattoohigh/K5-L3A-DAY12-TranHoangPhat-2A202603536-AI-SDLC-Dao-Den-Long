@@ -47,7 +47,8 @@ const colors = {
   red: "#C8102E",
   gold: "#F2C14E",
   drifter: "#7B9DB5",
-  drifterDark: "#4D6B82"
+  drifterDark: "#4D6B82",
+  teal: "#4ECDC4"
 };
 
 const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -377,17 +378,6 @@ function startNight() {
   lastTime = performance.now();
 }
 
-function enterPause() {
-  if (game.state === "paused") {
-    game.state = "playing";
-    show(null);
-  } else if (game.state === "playing") {
-    game.state = "paused";
-    if (ui.pause_night) ui.pause_night.textContent = `ĐÊM ${currentNight}`;
-    show("pause");
-  }
-}
-
 function openSettings(from) {
   settingsOrigin = from;
   if (ui.volume) ui.volume.value = String(Math.round(audioVolume * 100));
@@ -456,8 +446,8 @@ function updateHud(now) {
     ui.pulse_cd.classList.toggle("wait", p.pulseCd > 0);
   }
 
-  // Proximity hint
-  const near = game.lanterns.filter(l => (!l.lit || l.fuelUnits < 6000) && Math.hypot(p.pos[0] - l.pos[0], p.pos[2] - l.pos[2]) <= 2).sort((a,b) => Math.hypot(p.pos[0]-a.pos[0],p.pos[2]-a.pos[2])-Math.hypot(p.pos[0]-b.pos[0],p.pos[2]-b.pos[2]) || a.id.localeCompare(b.id))[0];
+  // Proximity hint (matches sim.mjs XZ <= 2 m and |dy| <= 1.5 m)
+  const near = game.lanterns.filter(l => (!l.lit || l.fuelUnits < 6000) && Math.hypot(p.pos[0] - l.pos[0], p.pos[2] - l.pos[2]) <= 2 && Math.abs(p.pos[1] - l.pos[1]) <= 1.5).sort((a,b) => Math.hypot(p.pos[0]-a.pos[0],p.pos[2]-a.pos[2])-Math.hypot(p.pos[0]-b.pos[0],p.pos[2]-b.pos[2]) || a.id.localeCompare(b.id))[0];
   if (ui.hint) {
     ui.hint.classList.toggle("hidden", !near);
     if (near) {
@@ -510,7 +500,7 @@ function drawWorld(now) {
   gl.uniformMatrix4fv(loc.view, false, mat4.lookAt(eye, focus, [0, 1, 0]));
 
   const litCount = game.lanterns.filter(l => l.lit).length;
-  const envLight = .24 + .50 * (litCount / game.lanterns.length);
+  const envLight = 0.15 + 0.55 * (litCount / game.lanterns.length);
   gl.uniform1f(loc.environment, envLight);
 
   // 1. SKY & CELESTIAL ELEMENTS
@@ -577,17 +567,12 @@ function drawWorld(now) {
     }
   }
 
-  // Bridges (Cầu Tre Vượt Biển)
+  // Bridges (Cầu Tre Không Lan Can Vượt Biển)
   for (const bridge of game.map.bridges) {
     draw("box", [(bridge.x1 + bridge.x2) / 2, -.02, 0], [bridge.x2 - bridge.x1, .25, bridge.z2 - bridge.z1], colors.wood);
-    // Transverse wooden planks
+    // Transverse wooden planks (unrailed per Night 2 specification)
     for (let bx = bridge.x1 + 1.2; bx < bridge.x2; bx += 2.0) {
-      draw("box", [bx, .02, 0], [0.35, .08, (bridge.z2 - bridge.z1) + 0.3], colors.woodDark);
-      // Bamboo railing posts with connecting ropes
-      draw("cylinder", [bx, -.02, (bridge.z2 + bridge.z1) / 2 + 1.5], [.09, .7, .09], colors.woodDark);
-      draw("cylinder", [bx, -.02, (bridge.z2 + bridge.z1) / 2 - 1.5], [.09, .7, .09], colors.woodDark);
-      draw("sphere", [bx, .68, (bridge.z2 + bridge.z1) / 2 + 1.5], [.12, .12, .12], colors.woodRed);
-      draw("sphere", [bx, .68, (bridge.z2 + bridge.z1) / 2 - 1.5], [.12, .12, .12], colors.woodRed);
+      draw("box", [bx, .02, 0], [0.35, .08, (bridge.z2 - bridge.z1) + 0.12], colors.woodDark);
     }
   }
 
@@ -658,9 +643,11 @@ function drawWorld(now) {
       draw("sphere", [tx + sway, ly + 2.9, tz], [0.06, 0.06, 0.06], colors.gold, 0.4);
     }
 
-    // A restrained pool of light keeps the lantern readable without covering the scene.
+    // Safe-zone ring is active only while lit and fuel >= 30 (Contract v1.2).
+    if (l.lit && !lowFuel) {
+      drawRing([lx, ly + .03, lz], 5.72, 5.92, colors.gold);
+    }
     if (l.lit && blink) {
-      drawRing([lx, .03, lz], 5.72, 5.92, colors.gold);
       draw("sphere", [lx, ly + 2.72, lz], [.36, .5, .36], colors.core, 1.65);
       // Rising light embers
       for (let e = 0; e < 3; e++) {
@@ -744,6 +731,7 @@ function drawWorld(now) {
 
   // 8. DRIFTERS (GIÓ LẠC LINH HỒN)
   for (const d of game.drifters) {
+    if (d.state === "removed") continue;
     const dy = Math.sin(now * .0045 + d.pos[0]) * .18;
     const dx = d.pos[0], dposy = d.pos[1] + .85 + dy, dz = d.pos[2];
     draw("sphere", [dx, dposy, dz], [.5, 1.05, .5], colors.drifter, .42);
@@ -810,7 +798,7 @@ function drawWorld(now) {
   // Charm Wind Aura Banner
   if (game.wind.active || p.charmTicks > 0) {
     const wave = Math.sin(now * .01) * .08;
-    draw("box", [px - .85 + wave, py + 1.55, pz], [1.6, .08, .08], colors.teal-400 || colors.drifter, .5);
+    draw("box", [px - .85 + wave, py + 1.55, pz], [1.6, .08, .08], colors.teal, .5);
     draw("box", [px - 1.0 + wave, py + 1.42, pz], [.7, .06, .06], colors.core, .35);
   }
 }
@@ -821,6 +809,7 @@ function animate(now) {
   if (isRunning) accumulator += dt;
 
   while (accumulator >= 1 / 60) {
+    const settingsOpen = ui.settings && !ui.settings.classList.contains("hidden");
     const input = {
       move: [(keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0), (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0)],
       cam_yaw_deg: cameraYaw,
@@ -828,13 +817,16 @@ function animate(now) {
       interact: keys.has("KeyE"),
       pulse: keys.has("KeyQ"),
       dash: keys.has("ShiftLeft") || keys.has("ShiftRight"),
-      pause: keys.has("Escape") || keys.has("KeyP")
+      pause: !settingsOpen && (keys.has("Escape") || keys.has("KeyP"))
     };
 
     const before = game.state;
     stepGame(game, input, { snapshotEvery: 999999 });
 
-    if (before === "playing" && game.state === "paused") show("pause");
+    if (before === "playing" && game.state === "paused") {
+      if (ui.pause_night) ui.pause_night.textContent = `ĐÊM ${currentNight}`;
+      show("pause");
+    }
     if (before === "paused" && game.state === "playing") show(null);
 
     for (; lastEventIndex < game.events.length; lastEventIndex++) {
@@ -897,6 +889,7 @@ function onKeyUp(e) {
 
 window.addEventListener("keydown", onKeyDown);
 window.addEventListener("keyup", onKeyUp);
+window.addEventListener("blur", () => keys.clear());
 
 let drag = false, lastX = 0;
 canvas.addEventListener("pointerdown", e => {
@@ -915,7 +908,11 @@ canvas.addEventListener("pointermove", e => {
 $("#begin").addEventListener("click", () => { campaignScore = 0; showIntro(1); });
 $("#start-night").addEventListener("click", startNight);
 $("#resume").addEventListener("click", () => {
-  if (game.state === "paused") game.state = "playing";
+  if (game.state === "paused") {
+    game.previous.pause = false;
+    stepGame(game, { pause: true }, { snapshotEvery: 999999 });
+    game.previous.pause = false;
+  }
   isRunning = true;
   show(null);
 });

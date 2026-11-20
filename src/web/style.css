@@ -437,6 +437,7 @@ body {
 }
 
 .fuel-chip {
+  position: relative;
   display: grid;
   grid-template-columns: 24px 1fr 34px;
   align-items: center;
@@ -458,7 +459,7 @@ body {
 .fuel-chip.low i { background: #ff5a5f; }
 @keyframes fuel-warning { 50% { opacity: .55; } }
 .colorblind .fuel-chip.low { border-color: #fff; }
-.colorblind .fuel-chip.low::before { content: '⚠'; position: absolute; transform: translateX(-24px); color: #fff; }
+.colorblind .fuel-chip.low::before { content: '⚠'; position: absolute; left: -18px; top: 50%; transform: translateY(-50%); color: #fff; font-size: 11px; }
 .colorblind .fuel-chip.low i { background: #fff; }
 .colorblind .clock.danger { color: #fff; }
 
