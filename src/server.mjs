@@ -116,8 +116,8 @@ export function startGameServer({ port = 4173, store = DEFAULT_STORE, onBenchRes
   });
 }
 
-// Run as CLI if executed directly
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Run as CLI if executed directly (use realpathSync so macOS /tmp -> /private/tmp symlinks match)
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   try {
     const opts = parseArgs(process.argv.slice(2));
     if (opts.exportPath) {
