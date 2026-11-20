@@ -27,3 +27,4 @@
 - Sửa hồi sinh khi rơi ở Đêm 3 về đúng `[0, 6, 0]`, khóa hành động trong 60 tick chờ hồi sinh và giữ đủ 90 tick bất tử sau khi hồi sinh.
 - Sửa đếm giới hạn 30 đom đóm active, dọn Gió Lạc ở trạng thái `removed`, tránh vùng an toàn khi Bóng Mực `wander` và khởi tạo đủ trường mặc định khi load scenario `recoil`.
 - Khôi phục ánh sáng môi trường đúng công thức `0.15 + 0.55 × (lit/total)`, ẩn vòng safe zone 6 m khi `fuel < 30`, bỏ lan can trên cầu không lan can Đêm 2, sửa biểu thức màu `colors.teal`, thêm kiểm tra độ cao cho gợi ý `[E]`, sửa vị trí biểu tượng cảnh báo `⚠` chế độ mù màu.
+- Xây dựng lại toàn bộ lớp hiển thị 3D, âm thanh và giao diện (`src/web/renderer.mjs`, `src/web/audio.mjs`, `src/web/game.mjs`, `src/web/style.css`, `index.html`) với pháp tuyến thật, xoay nhân vật/quái theo hướng di chuyển, 8 đèn điểm động, tia hút dầu, sóng xung kích Tỏa Sáng, nhạc nền ngũ cung và HUD hiện đại (giữ nguyên 100% lõi `src/sim.mjs`).

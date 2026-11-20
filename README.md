@@ -41,8 +41,8 @@ Contract đầy đủ ở [`game.contract.json`](game.contract.json). Tham số 
 
 ## Sáng tạo của tôi
 
-- **Thế giới 3D & âm thanh thủ tục 100% không asset ngoài:** Đảo bậc tầng, đèn lồng mái chùa 2 tầng có tua rua, nhân vật Mây (nón lá, áo tứ thân, đèn lồng cầm tay), đom đóm đập cánh, hoa đăng bay trên bầu trời sao, Bóng Mực và Gió Lạc đều được dựng từ hình khối WebGL thuần (`src/web/game.mjs`); nhạc nền và toàn bộ hiệu ứng âm thanh tổng hợp trực tiếp bằng Web Audio API.
-- **Không ảnh hưởng phần lõi và Test Contract (bằng chứng):** `src/sim.mjs` hoàn toàn không import `src/web/` hay bất kỳ API trình duyệt nào; `npm run verify` kiểm chứng hai lần chạy headless giống nhau từng byte và hoàn thành toàn bộ Đêm 3 (18 000 ticks) trong `63 ms` ([`docs/proof/phase-3/results.md`](docs/proof/phase-3/results.md)).
+- **Engine 3D WebGL đa nguồn sáng & âm thanh ngũ cung thủ tục 100% không asset ngoài:** Dựng lại toàn bộ bộ dựng hình [`src/web/renderer.mjs`](src/web/renderer.mjs) với pháp tuyến thật từng đỉnh, ma trận xoay TRS đầy đủ, tối đa 8 đèn điểm động (đèn cầm tay của Mây + các bảo đăng đang sáng), ánh sáng viền Fresnel, sương mù biển, nhân vật Mây xoay mượt theo hướng di chuyển cùng hoạt ảnh chạy/đèn lồng/đom đóm quanh người, 3 hòn đảo đặc trưng (Đảo Bến, Đảo Cau với cầu tre không lan can, Đảo Chuông 3 tầng), tia hút dầu của Bóng Mực, sóng xung kích Tỏa Sáng và nhạc nền ngũ cung Web Audio ([`src/web/audio.mjs`](src/web/audio.mjs)).
+- **Không ảnh hưởng phần lõi và Test Contract (bằng chứng):** `src/sim.mjs` hoàn toàn không import `src/web/` hay bất kỳ API trình duyệt nào; `npm run verify` kiểm chứng hai lần chạy headless giống nhau từng byte và hoàn thành toàn bộ Đêm 3 (18 000 ticks) trong `~60 ms` ([`docs/proof/phase-3/results.md`](docs/proof/phase-3/results.md)).
 
 ## Hồ sơ dự án & Harness
 
