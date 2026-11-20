@@ -945,3 +945,216 @@ kbd {
     display: none;
   }
 }
+
+/* Phase 3 visual pass — restrained, world-first HUD inspired by modern
+   atmospheric adventure games. All gameplay information remains visible. */
+.vignette {
+  background: radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(5, 8, 18, .22) 78%, rgba(3, 5, 14, .62) 100%);
+}
+
+.mist-overlay {
+  background:
+    linear-gradient(to top, rgba(35, 72, 83, .16), transparent 28%),
+    linear-gradient(to bottom, rgba(54, 70, 119, .12), transparent 36%);
+}
+
+.hud { padding: 26px 30px; }
+.hud-top { display: contents; }
+.hud-card { box-shadow: none; }
+
+.flames-card {
+  position: absolute;
+  top: 28px;
+  left: 30px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.flames-card .hud-label,
+.clock-card .hud-label { display: none; }
+
+.flames { gap: 9px; align-items: center; }
+.flame-mark {
+  position: relative;
+  display: block;
+  width: 15px;
+  height: 21px;
+  border-radius: 70% 35% 65% 45%;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #fff3bb 5%, #f5c458 48%, #d86b24 100%);
+  box-shadow: 0 0 9px rgba(245,196,88,.55);
+  transition: opacity .25s, filter .25s;
+}
+.flame-mark::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 9px;
+  left: 5px;
+  top: 7px;
+  border-radius: 70% 35% 65% 45%;
+  background: #fff8d9;
+}
+.flame-mark.spent { opacity: .16; filter: saturate(0); box-shadow: none; }
+
+.clock-card {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 0;
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(7,11,22,.36);
+  backdrop-filter: blur(10px);
+}
+.clock { font-family: var(--font-sans); font-size: 19px; font-weight: 650; letter-spacing: .09em; text-shadow: 0 1px 8px #000; }
+.clock-icon { width: 13px; height: 13px; color: rgba(255,239,191,.85); }
+
+.score-card {
+  position: absolute;
+  top: 27px;
+  right: 30px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  gap: 1px;
+}
+.score-card .hud-label { color: #fff2c5; font-size: 9px; letter-spacing: .2em; opacity: .78; }
+.score-display b { font-family: var(--font-sans); font-size: 18px; font-weight: 650; color: #fff6da; text-shadow: 0 1px 10px #000; }
+.score-sparkle { font-size: 10px; }
+.score-unit { font-size: 8px; opacity: .7; }
+
+.fps {
+  right: 30px;
+  top: 78px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  color: rgba(255,255,255,.28);
+  font-size: 8px;
+}
+
+.lantern-fuels {
+  top: 65px;
+  left: 30px;
+  width: 164px;
+  gap: 4px;
+}
+.fuel-chip {
+  grid-template-columns: 18px 72px 32px;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255,255,255,.72);
+  opacity: .78;
+}
+.fuel-chip > div { height: 3px; background: rgba(255,255,255,.13); }
+.fuel-chip i { background: linear-gradient(90deg,#d77b36,#ffe5a0); box-shadow: 0 0 6px rgba(255,210,111,.35); }
+.fuel-chip b { font-family: var(--font-sans); font-size: 8px; font-weight: 600; color: rgba(255,246,218,.7); }
+.fuel-chip.out { opacity: .28; }
+.fuel-chip.low { border: 0; animation: fuel-warning 1s infinite; }
+.lantern-glyph {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 7px;
+}
+
+.hud-bottom { position: absolute; left: 30px; right: 30px; bottom: 27px; }
+.mote-card {
+  min-width: 0;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+.mote-header { justify-content: flex-start; gap: 10px; }
+.mote-header .hud-label { font-size: 8px; color: rgba(255,255,255,.55); letter-spacing: .15em; }
+.mote-counter { font-family: var(--font-sans); font-size: 9px; color: #ffe6a0; }
+.mote-slots { gap: 5px; margin-top: 6px; }
+.mote-slots i { width: 10px; height: 10px; border-color: rgba(255,255,255,.2); background: rgba(5,9,18,.38); box-shadow: 0 1px 5px rgba(0,0,0,.4); }
+.mote-slots i.on { transform: none; background: #ffe19a; border-color: #fff4cf; box-shadow: 0 0 8px #eaae51; }
+.mote-slots i.on::after { display: none; }
+
+.cooldowns { gap: 9px; align-items: flex-end; }
+.skill-badge {
+  min-width: 0;
+  padding: 5px 9px 5px 5px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(7,11,22,.38);
+  backdrop-filter: blur(9px);
+  box-shadow: none;
+  gap: 8px;
+}
+.skill-key {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(255,238,186,.11);
+  border-color: rgba(255,227,146,.35);
+  font-size: 8px;
+}
+.skill-name { max-width: 132px; font-size: 8px; letter-spacing: .08em; color: rgba(255,255,255,.78); }
+
+.controls-hint {
+  bottom: 7px;
+  gap: 10px;
+  font-size: 8px;
+  opacity: .38;
+}
+.controls-hint kbd { padding: 1px 4px; font-size: 8px; border-width: 1px; }
+
+.hint {
+  top: auto;
+  bottom: 18%;
+  padding: 7px 13px;
+  border: 0;
+  background: rgba(5,9,18,.58);
+  box-shadow: 0 5px 18px rgba(0,0,0,.28);
+}
+.hint-key { border-radius: 50%; padding: 4px 7px; font-size: 9px; }
+.hint-text { font-size: 9px; }
+
+.arrow-core { font-size: 20px; }
+.arrow span { font-size: 7px; opacity: .68; }
+
+.wind-warning {
+  margin-top: 40px;
+  border: 0;
+  background: rgba(8,13,26,.5);
+  box-shadow: none;
+  font-size: 9px;
+}
+
+@media (max-width: 768px) {
+  .hud { padding: 18px; }
+  .flames-card, .lantern-fuels { left: 18px; }
+  .score-card, .fps { right: 18px; }
+  .hud-bottom { left: 18px; right: 18px; }
+  .lantern-fuels { top: 58px; width: 130px; }
+  .fuel-chip { grid-template-columns: 16px 54px 28px; }
+  .skill-name { display: none; }
+  .mote-header .hud-label { display: none; }
+}

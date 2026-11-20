@@ -15,19 +15,19 @@ const ui = Object.fromEntries([
 ].map(id => [id.replaceAll("-", "_"), document.getElementById(id)]));
 
 const colors = {
-  sky: "#050716",
-  sky2: "#0E1538",
-  grass: "#2B5846",
-  grassDark: "#1E3D30",
-  grassLight: "#3B755D",
+  sky: "#10152B",
+  sky2: "#263A61",
+  grass: "#315D4C",
+  grassDark: "#244739",
+  grassLight: "#477A62",
   sand: "#C4AA7C",
   rock: "#5C636E",
   rockDark: "#3E434D",
   wood: "#5A3820",
   woodDark: "#382010",
   woodRed: "#78281E",
-  sea: "#0A2436",
-  seaFoam: "#1E4C63",
+  sea: "#132E43",
+  seaFoam: "#39708A",
   amber: "#FFA830",
   amberDeep: "#E07810",
   core: "#FFF4D0",
@@ -121,7 +121,7 @@ gl.attachShader(program, compile(gl.FRAGMENT_SHADER,
      float spec = pow(max(dot(n, h), 0.0), 32.0) * 0.15;
      float light = amb + key * (0.58 + 0.35 * environment) + fill + rim + spec + glow;
      float fog = smoothstep(55.0, 140.0, vDepth) * 0.58;
-     vec3 fogColor = vec3(0.025, 0.035, 0.12);
+     vec3 fogColor = vec3(0.075, 0.105, 0.19);
      vec3 lit = mix(color * light, fogColor, fog);
      float ground = smoothstep(-1.5, 0.5, vWorldPos.y);
      lit *= (0.75 + 0.25 * ground);
@@ -429,7 +429,7 @@ function updateHud(now) {
     ui.clock.classList.toggle("danger", seconds <= 30);
   }
   if (ui.flames) {
-    ui.flames.innerHTML = Array.from({ length: 3 }, (_, i) => `<span style="opacity:${i < p.flames ? 1 : .18}; transform:scale(${i < p.flames ? 1 : 0.8})">🔥</span>`).join("");
+    ui.flames.innerHTML = Array.from({ length: 3 }, (_, i) => `<span class="flame-mark ${i < p.flames ? "alive" : "spent"}" aria-label="${i < p.flames ? "Ngọn lửa còn lại" : "Ngọn lửa đã mất"}"></span>`).join("");
   }
   if (ui.lantern_count) {
     ui.lantern_count.textContent = `ĐÈN ${game.lanterns.filter(l => l.lit).length}/${game.lanterns.length}`;
@@ -482,7 +482,7 @@ function updateHud(now) {
   if (ui.lantern_fuels) ui.lantern_fuels.innerHTML = game.lanterns.map(l => {
     const fuel = l.lit ? Math.max(0, Math.min(100, l.fuelUnits / 60)) : 0;
     const low = l.lit && fuel < 30;
-    return `<div class="fuel-chip ${l.lit ? "lit" : "out"} ${low ? "low" : ""}"><span>${l.id}</span><div><i style="width:${fuel}%"></i></div><b>${Math.floor(fuel)}%</b></div>`;
+    return `<div class="fuel-chip ${l.lit ? "lit" : "out"} ${low ? "low" : ""}" title="${l.id}: ${Math.floor(fuel)}% nhiên liệu"><span class="lantern-glyph">${l.id.slice(1)}</span><div><i style="width:${fuel}%"></i></div><b>${l.lit ? `${Math.floor(fuel)}%` : "TẮT"}</b></div>`;
   }).join("");
 
   if (ui.wind_warning) {
@@ -510,7 +510,7 @@ function drawWorld(now) {
   gl.uniformMatrix4fv(loc.view, false, mat4.lookAt(eye, focus, [0, 1, 0]));
 
   const litCount = game.lanterns.filter(l => l.lit).length;
-  const envLight = .16 + .54 * (litCount / game.lanterns.length);
+  const envLight = .24 + .50 * (litCount / game.lanterns.length);
   gl.uniform1f(loc.environment, envLight);
 
   // 1. SKY & CELESTIAL ELEMENTS
@@ -658,13 +658,10 @@ function drawWorld(now) {
       draw("sphere", [tx + sway, ly + 2.9, tz], [0.06, 0.06, 0.06], colors.gold, 0.4);
     }
 
-    // Brilliant illumination effects when lit
+    // A restrained pool of light keeps the lantern readable without covering the scene.
     if (l.lit && blink) {
-      drawRing([lx, .03, lz], 5.6, 6.0, colors.amber);
-      drawRing([lx, .02, lz], 3.2, 5.7, colors.amberDeep);
-      drawRing([lx, .015, lz], 0.8, 3.2, colors.core);
-      // Soft radiant halo sphere
-      draw("sphere", [lx, ly + 2.8, lz], [1.8, 1.4, 1.8], colors.amber, 0.25);
+      drawRing([lx, .03, lz], 5.72, 5.92, colors.gold);
+      draw("sphere", [lx, ly + 2.72, lz], [.36, .5, .36], colors.core, 1.65);
       // Rising light embers
       for (let e = 0; e < 3; e++) {
         const ex = lx + Math.sin(_currentTime * 3 + e * 2) * 0.6;
@@ -716,25 +713,26 @@ function drawWorld(now) {
     const isStunned = s.state === "stunned";
     const bobY = isStunned ? 0 : Math.sin(now * .0035 + s.pos[0]) * .1;
     const sx = s.pos[0], sy = s.pos[1] + .85 + bobY, sz = s.pos[2];
+    const shadeAccent = colorblind ? "#00B3FF" : colors.violetBright;
 
-    // Swirling Ink Spirit Body
-    draw("sphere", [sx, sy, sz], [.85, .88, .85], isStunned ? colors.stunned : colors.shadeBody, isStunned ? .25 : .08);
-    draw("sphere", [sx, sy - 0.25, sz], [.65, .55, .65], colors.shade, .05);
+    // A single floating ink-spirit silhouette instead of stacked primitive blocks.
+    draw("cone", [sx, sy - .78, sz], [.78, 1.35, .78], isStunned ? colors.stunned : colors.shadeBody, isStunned ? .24 : .05);
+    draw("sphere", [sx, sy + .26, sz], [.52, .56, .52], isStunned ? colors.stunned : colors.shade, isStunned ? .2 : .08);
+    draw("torus", [sx, sy - .18, sz], [.72, .045, .72], shadeAccent, isStunned ? .2 : .38);
 
     // Glowing Eerie Phantom Eyes
     const eyeGlow = isStunned ? .15 : .9 + .25 * Math.sin(now * .006);
-    const shadeAccent = colorblind ? "#00B3FF" : colors.violetBright;
-    draw("sphere", [sx - .24, sy + .16, sz + .68], [.11, .11, .11], isStunned ? colors.stunned : shadeAccent, eyeGlow);
-    draw("sphere", [sx + .24, sy + .16, sz + .68], [.11, .11, .11], isStunned ? colors.stunned : shadeAccent, eyeGlow);
+    draw("sphere", [sx - .17, sy + .31, sz + .47], [.075, .055, .06], isStunned ? colors.stunned : shadeAccent, eyeGlow);
+    draw("sphere", [sx + .17, sy + .31, sz + .47], [.075, .055, .06], isStunned ? colors.stunned : shadeAccent, eyeGlow);
     if (colorblind && !isStunned) draw("torus", [sx, sy, sz], [1.0, .035, 1.0], "#00B3FF", .55);
 
     // Orbiting Wisps of Black Smoke Tendrils
-    for (let w = 0; w < 4; w++) {
-      const wa = (w / 4) * Math.PI * 2 + now * 0.003;
-      const wx = sx + Math.cos(wa) * 0.55;
-      const wz = sz + Math.sin(wa) * 0.55;
-      const wy = sy - 0.45 + Math.sin(wa * 2) * 0.12;
-      draw("sphere", [wx, wy, wz], [0.28, 0.28, 0.28], colors.shade, 0.04);
+    for (let w = 0; w < 5; w++) {
+      const wa = (w / 5) * Math.PI * 2 + now * 0.0022;
+      const wx = sx + Math.cos(wa) * (0.48 + w * .045);
+      const wz = sz + Math.sin(wa) * (0.48 + w * .045);
+      const wy = sy - 0.72 + Math.sin(wa * 2) * 0.13;
+      draw("sphere", [wx, wy, wz], [0.12, 0.18, 0.12], colors.shade, 0.08);
     }
 
     // Stunned: Runic Golden Rings Binding the Shade
