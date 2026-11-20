@@ -2,7 +2,7 @@
 
 - Repo: `phattoohigh/K5-L3A-DAY12-TranHoangPhat-2A202603536-AI-SDLC-Dao-Den-Long` (repo public hiện có, đúng quy ước tên).
 - Công cụ AI: Codex trong IDE; Lab board đã mở được trên claude.ai.
-- Lab board hiện hiển thị Phase 1 đang diễn ra; Phase 2–4 chưa phát hành. Nút trợ giảng yêu cầu đăng nhập Claude, nên chưa gửi câu hỏi kiểm tra được.
+- Ghi nhận tại thời điểm hoàn tất CP0: Lab board khi đó hiển thị Phase 1 đang diễn ra; Phase 2–4 chưa phát hành. Nút trợ giảng yêu cầu đăng nhập Claude, nên chưa gửi câu hỏi kiểm tra được. Phase 2 sau đó đã được phát hành và đang được triển khai trong `phase-2-spec.md`.
 - Engine/ngôn ngữ: WebGL thuần cho phần hiển thị 3D; JavaScript ES modules dùng chung cho logic; Node.js chạy logic headless. Không cần cài thư viện ngoài ở CP0.
 - Lý do chọn: Node.js có sẵn trên máy; cùng module JavaScript có thể chạy trong trình duyệt và Node, giảm nguy cơ lệch logic giữa game và Test Contract.
 - Lệnh smoke test: `node tools/cp0/hello-headless.mjs`.

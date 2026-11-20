@@ -1,0 +1,36 @@
+{
+  "contract_version": "1.1",
+  "team": "2A202603536-TranHoangPhat",
+  "build_cmd": "npm run build",
+  "run_cmd": "npm run serve",
+  "headless_cmd": "node src/headless.mjs",
+  "tuning": {
+    "player_speed": 6.0,
+    "carry_capacity": 10,
+    "lantern_cost": 10,
+    "lantern_count_night1": 5,
+    "pickup_radius": 1.0,
+    "interact_radius": 2.0,
+    "pulse_cost": 3,
+    "pulse_radius": 5.0,
+    "pulse_stun_s": 2.0,
+    "night1_duration_s": 300,
+    "night2_duration_s": 330,
+    "night3_duration_s": 360,
+    "flames": 3,
+    "invuln_s": 1.5,
+    "hit_drop_ratio": 0.5,
+    "safe_radius": 6.0,
+    "fall_enabled": true,
+    "dash_speed": 14.0,
+    "dash_duration_s": 0.2,
+    "dash_cooldown_s": 1.5,
+    "score": {
+      "deposit_per_mote": 10,
+      "lantern_lit": 100,
+      "shade_hit_by_pulse": 5,
+      "seconds_remaining_multiplier": 2,
+      "flame_remaining": 50
+    }
+  }
+}

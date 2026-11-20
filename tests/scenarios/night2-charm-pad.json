@@ -1,0 +1,10 @@
+{
+  "player": { "pos": [20, 0, 18], "carried": 0, "flames": 3 },
+  "random_motes": false,
+  "random_shades": false,
+  "random_drifters": false,
+  "wind_enabled": false,
+  "motes": [],
+  "shades": [],
+  "charms": [{ "id": "C1", "pos": [20, 0, 18], "available": true }]
+}

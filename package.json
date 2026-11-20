@@ -1,0 +1,10 @@
+{
+  "name": "dao-den-long",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node --check src/sim.mjs && node --check src/headless.mjs && node --check src/web/game.mjs",
+    "test": "node --test",
+    "serve": "python3 -m http.server 4173"
+  }
+}
