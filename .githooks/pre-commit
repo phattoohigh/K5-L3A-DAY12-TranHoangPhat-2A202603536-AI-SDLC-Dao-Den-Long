@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+set -eu
+
+echo "[pre-commit] Running build and test checks..."
+npm run build
+npm test
