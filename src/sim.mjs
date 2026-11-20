@@ -86,9 +86,13 @@ function surfaceY(night, x, z) {
   if (r <= 8) return 6;
   for (const degrees of [30, 150]) {
     const a = degrees * Math.PI / 180, along = x * Math.cos(a) + z * Math.sin(a), across = Math.abs(-x * Math.sin(a) + z * Math.cos(a));
-    if (across <= 1.5 && along >= 24 && along <= 30) return 3 * (30 - along) / 6;
+    if (across <= 1.5 && along >= 23.5 && along <= 30) return clamp(3 * (30 - along) / 6, 0, 3);
   }
   return 0;
+}
+
+function spawnPosFor(night) {
+  return night === 3 ? [0, 6, 0] : [0, 0, 0];
 }
 
 function insideMap(map, x, z) {
@@ -118,7 +122,7 @@ function applyScenario(game, scenario) {
   for (const name of ["motes", "shades", "drifters", "charms"]) {
     if (Array.isArray(scenario[name])) {
       if (name === "motes") game.motes = scenario.motes.map((v, i) => Array.isArray(v) ? { id: `M${i + 1}`, pos: copy(v), kind: "random", ttlTicks: null, active: true } : ({ id: v.id ?? `M${i + 1}`, pos: copy(v.pos), kind: v.kind ?? "random", ttlTicks: v.ttl_ticks ?? null, active: true }));
-      if (name === "shades") game.shades = scenario.shades.map((v, i) => ({ id: v.id ?? `S${i + 1}`, pos: copy(v.pos), state: v.state ?? "wander", stateTicks: v.state_ticks_left ?? 0, target: null, targetLanternId: v.target_lantern_id ?? null, spawnIndex: i }));
+      if (name === "shades") game.shades = scenario.shades.map((v, i) => ({ id: v.id ?? `S${i + 1}`, pos: copy(v.pos), state: v.state ?? "wander", stateTicks: v.state_ticks_left ?? 0, target: null, targetLanternId: v.target_lantern_id ?? null, spawnIndex: i, safeTicks: 0, knockbackTicks: 0, knockDir: [1, 0], recoilDir: [0, 0] }));
       if (name === "drifters") game.drifters = scenario.drifters.map((v, i) => ({ id: v.id ?? `D${i + 1}`, pos: copy(v.pos), state: v.state ?? "idle", stolen: v.stolen ?? 0, stateTicks: v.state_ticks_left ?? 0, target: null }));
       if (name === "charms") game.charms = scenario.charms.map((v, i) => ({ id: v.id ?? `C${i + 1}`, pos: copy(v.pos ?? [0, 0, 0]), available: v.available ?? true, respawnTicks: v.respawn_ticks ?? 0 }));
     }
@@ -174,6 +178,25 @@ function nearestSurface(game, x, z) {
   return { y, inMap: insideMap(game.map, x, z) };
 }
 
+function applyHorizontalMove(game, dx, dz) {
+  const p = game.player;
+  const maxStepUp = 0.5;
+  const canMoveTo = (nx, nz) => {
+    const f = nearestSurface(game, nx, nz);
+    return !(f.inMap && f.y > p.pos[1] + maxStepUp);
+  };
+  const nextX = p.pos[0] + dx, nextZ = p.pos[2] + dz;
+  if (canMoveTo(nextX, nextZ)) {
+    p.pos[0] = nextX; p.pos[2] = nextZ;
+  } else if (canMoveTo(nextX, p.pos[2])) {
+    p.pos[0] = nextX; p.vel[2] = 0;
+  } else if (canMoveTo(p.pos[0], nextZ)) {
+    p.pos[2] = nextZ; p.vel[0] = 0;
+  } else {
+    p.vel[0] = 0; p.vel[2] = 0;
+  }
+}
+
 function movePlayer(game, input) {
   const p = game.player;
   if (p.respawnTicks > 0) { p.respawnTicks--; p.vel = [0, 0, 0]; return; }
@@ -188,29 +211,32 @@ function movePlayer(game, input) {
   if (len > 0.001) p.facing = [wx / len, 0, wz / len];
   const maxSpeed = p.charmTicks > 0 ? 7.2 : 6;
   const dashActive = p.dashTicks > 0;
+  let moveX = 0, moveZ = 0;
   if (dashActive) {
-    p.pos[0] += p.dashDir[0] * 14 / HZ;
-    p.pos[2] += p.dashDir[1] * 14 / HZ;
+    moveX = p.dashDir[0] * 14 / HZ;
+    moveZ = p.dashDir[1] * 14 / HZ;
     p.dashTicks--;
   } else if (p.recoilTicks > 0) {
-    p.pos[0] += p.vel[0] / HZ; p.pos[2] += p.vel[2] / HZ; p.recoilTicks--;
+    moveX = p.vel[0] / HZ; moveZ = p.vel[2] / HZ; p.recoilTicks--;
   } else if (p.launched) {
-    p.pos[0] += p.vel[0] / HZ; p.pos[2] += p.vel[2] / HZ;
+    moveX = p.vel[0] / HZ; moveZ = p.vel[2] / HZ;
   } else {
     const targetX = wx * maxSpeed, targetZ = wz * maxSpeed;
     const dx = targetX - p.vel[0], dz = targetZ - p.vel[2], dv = Math.hypot(dx, dz), maxChange = maxSpeed / 6;
     const response = dv > maxChange ? maxChange / dv : 1;
     p.vel[0] += dx * response;
     p.vel[2] += dz * response;
-    p.pos[0] += p.vel[0] / HZ; p.pos[2] += p.vel[2] / HZ;
+    moveX = p.vel[0] / HZ; moveZ = p.vel[2] / HZ;
   }
   if (game.night === 3 && game.wind.active) {
     const a = game.wind.dirDeg * Math.PI / 180;
-    p.pos[0] += Math.cos(a) * 2 / HZ; p.pos[2] += Math.sin(a) * 2 / HZ;
+    moveX += Math.cos(a) * 2 / HZ; moveZ += Math.sin(a) * 2 / HZ;
   }
+  applyHorizontalMove(game, moveX, moveZ);
   const floor = nearestSurface(game, p.pos[0], p.pos[2]);
   if (input.jump && !game.previous.jump && p.grounded && !p.launched) { p.vel[1] = 7; p.grounded = false; emit(game, "jump", {}); }
-  const pad = game.map.pads.find(item => dist2(p.pos, item.pos) <= 1 && p.grounded && !p.launched);
+  const pad = game.map.pads.find(item => dist2(p.pos, item.pos) <= 1 && Math.abs(p.pos[1] - item.pos[1]) <= 1.5 && p.grounded && !p.launched);
+  const justLaunched = Boolean(pad);
   if (pad) {
     const dx = pad.target[0] - p.pos[0], dz = pad.target[2] - p.pos[2], d = Math.hypot(dx, dz) || 1;
     const launchSpeed = game.night === 2 ? 24 : 8;
@@ -220,9 +246,12 @@ function movePlayer(game, input) {
   if (!p.grounded || p.pos[1] > floor.y) {
     if (dashActive) { /* an aerial dash keeps the current height */ }
     else {
-    if (!p.launched) p.vel[1] -= 20 / HZ;
-    p.pos[1] += p.vel[1] / HZ;
-    if (floor.inMap && p.pos[1] <= floor.y) { p.pos[1] = floor.y; p.vel[1] = 0; p.grounded = true; p.launched = false; }
+      if (!justLaunched) p.vel[1] -= 20 / HZ;
+      p.pos[1] += p.vel[1] / HZ;
+      if (floor.inMap && p.pos[1] <= floor.y) {
+        if (p.launched) { p.vel[0] = 0; p.vel[2] = 0; }
+        p.pos[1] = floor.y; p.vel[1] = 0; p.grounded = true; p.launched = false;
+      }
     }
   } else if (floor.inMap) { p.pos[1] = floor.y; p.vel[1] = 0; p.grounded = true; }
   if (!floor.inMap && p.pos[1] > -10) p.grounded = false;
@@ -235,15 +264,15 @@ function handleFall(game) {
   const lost = p.carried; p.carried = 0;
   emit(game, "player_hit", { by: "fall", flames: p.flames, dropped: lost, lost });
   if (p.flames <= 0) { finishNight(game, "lost", "no_flames"); return; }
-  p.respawnTicks = 60; p.invuln = 90; p.pos = [0, 0, 0]; p.vel = [0, 0, 0]; p.grounded = true; p.fallingHandled = false;
+  p.respawnTicks = 60; p.invuln = 90; p.pos = spawnPosFor(game.night); p.vel = [0, 0, 0];
+  p.grounded = true; p.launched = false; p.dashTicks = 0; p.recoilTicks = 0; p.fallingHandled = false;
 }
 
 function pickupItems(game) {
   const p = game.player;
   for (const m of game.motes) {
-    if (!m.active && m.ttlTicks !== null) { m.ttlTicks--; if (m.ttlTicks <= 0) continue; }
     if (m.active && p.carried < capacityOf(game) && dist2(p.pos, m.pos) <= 1 && Math.abs(p.pos[1] - m.pos[1]) <= 1.5) {
-      m.active = false; p.carried++; emit(game, "mote_picked", { carried: p.carried });
+      m.active = false; m.ttlTicks = null; p.carried++; emit(game, "mote_picked", { carried: p.carried });
     }
   }
   for (const c of game.charms) if (c.available && dist2(p.pos, c.pos) <= 1 && Math.abs(p.pos[1] - c.pos[1]) <= 1.5) {
@@ -308,16 +337,16 @@ function pulse(game, input) {
       const dx = e.pos[0] - p.pos[0], dz = e.pos[2] - p.pos[2], d = Math.hypot(dx, dz) || 0;
       e.knockDir = d ? [dx / d, dz / d] : [1, 0];
       game.score += wasDraining ? 15 : 5; stunned.push(e.id);
-    } else if (e.state === "chase") { e.state = "flee"; e.stateTicks = 240; e.target = [e.pos[0] + 10, e.pos[2] + 10]; }
+    } else if (e.state === "chase") { e.state = "flee"; e.stateTicks = 240; }
     else if (e.state === "flee" && e.stolen > 0) {
-      dropMotes(game, e.pos, e.stolen, 120); emit(game, "drifter_drop", { drifter_id: e.id, amount: e.stolen }); e.stolen = 0; e.state = "removed"; e.stateTicks = 120;
+      dropMotes(game, e.pos, e.stolen, 480); emit(game, "drifter_drop", { drifter_id: e.id, amount: e.stolen }); e.stolen = 0; e.state = "removed"; e.stateTicks = 1;
     }
   }
   emit(game, "pulse", { stunned_ids: stunned });
 }
 
 function dropMotes(game, pos, amount, ttl) {
-  const count = Math.min(amount, 30 - game.motes.filter(m => m.active || (m.ttlTicks ?? 0) > 0).length);
+  const count = Math.min(amount, 30 - game.motes.filter(m => m.active).length);
   for (let i = 0; i < count; i++) {
     const a = (i / Math.max(1, count)) * Math.PI * 2;
     const r = 1.5 + (i % 3) * 0.5;
@@ -341,21 +370,27 @@ function hitPlayer(game, by, source) {
 
 function updateShades(game) {
   const meta = nights[game.night], p = game.player;
+  const inSafeZone = (x, z) => game.lanterns.some(l => l.lit && fuelOf(l) >= 30 && Math.hypot(x - l.pos[0], z - l.pos[2]) <= 6);
   for (const s of game.shades.slice().sort(idOrder)) {
     if (s.state === "stunned") {
-      if (s.knockbackTicks > 0) { const push = 4 / 15 / HZ; s.pos[0] += s.knockDir[0] * 4 / 15; s.pos[2] += s.knockDir[1] * 4 / 15; s.knockbackTicks--; }
+      if (s.knockbackTicks > 0) { s.pos[0] += s.knockDir[0] * 4 / 15; s.pos[2] += s.knockDir[1] * 4 / 15; s.knockbackTicks--; }
       if (s.stateTicks <= 0) s.state = "wander";
       continue;
     }
     if (s.state === "spawning") { s.stateTicks--; if (s.stateTicks <= 0) s.state = "wander"; continue; }
-    if (s.state === "recoil") { s.pos[0] += s.recoilDir[0] * 2 / HZ; s.pos[2] += s.recoilDir[1] * 2 / HZ; s.stateTicks--; if (s.stateTicks <= 0) s.state = "wander"; continue; }
+    if (s.state === "recoil") {
+      const rx = (s.recoilDir ?? [0, 0])[0], rz = (s.recoilDir ?? [0, 0])[1];
+      s.pos[0] += rx * 2 / HZ; s.pos[2] += rz * 2 / HZ; s.stateTicks--;
+      if (s.stateTicks <= 0) s.state = "wander";
+      continue;
+    }
     const d = dist2(s.pos, p.pos);
     if (s.state === "drain") {
       const target = game.lanterns.find(l => l.id === s.targetLanternId);
       if (!target || !target.lit || fuelOf(target) >= 30 || dist2(s.pos, target.pos) > 2) {
         s.state = "wander"; s.targetLanternId = null;
       } else if (d < 6) {
-        s.state = "chase";
+        s.state = "chase"; s.targetLanternId = null;
       } else {
         continue;
       }
@@ -366,8 +401,7 @@ function updateShades(game) {
       let nx = (p.pos[0] - s.pos[0]) / d, nz = (p.pos[2] - s.pos[2]) / d;
       const step = meta.shadeSpeed / HZ;
       const tx = s.pos[0] + nx * step, tz = s.pos[2] + nz * step;
-      const safe = game.lanterns.some(l => l.lit && fuelOf(l) >= 30 && Math.hypot(tx - l.pos[0], tz - l.pos[2]) <= 6);
-      if (!safe) { s.pos[0] = tx; s.pos[2] = tz; }
+      if (!inSafeZone(tx, tz)) { s.pos[0] = tx; s.pos[2] = tz; }
       if (p.respawnTicks <= 0 && p.invuln <= 0 && (s.safeTicks ?? 0) <= 0 && dist2(s.pos, p.pos) <= 1 && Math.abs(s.pos[1] - p.pos[1]) <= 1.5) {
         if (hitPlayer(game, "shade", s)) { s.state = "recoil"; s.stateTicks = 60; s.recoilDir = [-nx, -nz]; }
       }
@@ -383,13 +417,13 @@ function updateShades(game) {
         const ld = dist2(s.pos, target.pos);
         if (target.lit && fuelOf(target) < 30 && ld <= 2) s.state = "drain";
         else if (ld > 0.001) {
-          s.pos[0] += (target.pos[0] - s.pos[0]) / ld * meta.shadeSpeed / HZ;
-          s.pos[2] += (target.pos[2] - s.pos[2]) / ld * meta.shadeSpeed / HZ;
+          const tx = s.pos[0] + (target.pos[0] - s.pos[0]) / ld * meta.shadeSpeed / HZ;
+          const tz = s.pos[2] + (target.pos[2] - s.pos[2]) / ld * meta.shadeSpeed / HZ;
+          if (!inSafeZone(tx, tz)) { s.pos[0] = tx; s.pos[2] = tz; }
         }
       }
     }
     if (s.safeTicks > 0) s.safeTicks--;
-    if (s.state === "recoil") { s.stateTicks--; if (s.stateTicks <= 0) s.state = "wander"; }
   }
 }
 
@@ -442,7 +476,7 @@ function updateWind(game) {
 }
 
 function spawnEntities(game) {
-  if (game.randomMotes && game.simTick > 0 && game.simTick % 240 === 0 && game.motes.filter(m => m.active || (m.ttlTicks ?? 0) > 0).length < 30) {
+  if (game.randomMotes && game.simTick > 0 && game.simTick % 240 === 0 && game.motes.filter(m => m.active).length < 30) {
     const candidates = game.map.motes.filter(pos => !game.motes.some(m => m.active && dist2(m.pos, pos) < 0.1));
     if (candidates.length) { const pos = candidates[Math.floor(game.random() * candidates.length)]; game.moteSerial++; game.motes.push({ id: `M${game.moteSerial}`, pos: copy(pos), kind: "random", ttlTicks: null, active: true }); }
   }
@@ -452,10 +486,10 @@ function spawnEntities(game) {
       const candidates = game.map.shadePoints.filter(pos => dist2(pos, game.player.pos) >= 15);
       if (!candidates.length) break;
       const pos = candidates[game.shadeCursor++ % candidates.length]; game.shadeSerial++;
-      game.shades.push({ id: `S${game.shadeSerial}`, pos: copy(pos), state: "spawning", stateTicks: 30, safeTicks: 0, knockbackTicks: 0 });
+      game.shades.push({ id: `S${game.shadeSerial}`, pos: copy(pos), state: "spawning", stateTicks: 30, safeTicks: 0, knockbackTicks: 0, knockDir: [1, 0], recoilDir: [0, 0], targetLanternId: null });
       emit(game, "shade_spawned", { id: `S${game.shadeSerial}` });
     }
-    game.spawnShadeAt += game.simTick === 300 ? nights[game.night].shadeInterval : nights[game.night].shadeInterval;
+    game.spawnShadeAt += nights[game.night].shadeInterval;
   }
   if (game.randomDrifters && game.night >= 2 && game.simTick >= game.spawnDrifterAt && game.drifters.length < 2) {
     const pos = game.map.shadePoints[game.drifterCursor++ % game.map.shadePoints.length]; game.drifterSerial++;
@@ -476,7 +510,8 @@ function finishNight(game, state, reason) {
 
 function advanceTimers(game) {
   const p = game.player;
-  p.invuln = Math.max(0, p.invuln - 1); p.dashCd = Math.max(0, p.dashCd - 1); p.pulseCd = Math.max(0, p.pulseCd - 1); p.charmTicks = Math.max(0, p.charmTicks - 1);
+  if (p.respawnTicks <= 0) p.invuln = Math.max(0, p.invuln - 1);
+  p.dashCd = Math.max(0, p.dashCd - 1); p.pulseCd = Math.max(0, p.pulseCd - 1); p.charmTicks = Math.max(0, p.charmTicks - 1);
   for (const c of game.charms) if (!c.available && c.respawnTicks > 0) { c.respawnTicks--; if (c.respawnTicks <= 0) c.available = true; }
   for (const s of game.shades) if (s.state === "stunned" && s.stateTicks > 0) s.stateTicks--;
   for (const m of game.motes) if (m.active && m.ttlTicks !== null) { m.ttlTicks--; if (m.ttlTicks <= 0) m.active = false; }
@@ -528,7 +563,8 @@ export function stepGame(game, rawInput = {}, { snapshotEvery = 10 } = {}) {
     return partialRecords();
   }
   game.simTick++; advanceTimers(game); updateWind(game);
-  if (input.dash && !game.previous.dash && (p.dashCd <= 0 || p.charmTicks > 0) && p.dashTicks <= 0) {
+  const respawning = p.respawnTicks > 0;
+  if (!respawning && input.dash && !game.previous.dash && (p.dashCd <= 0 || p.charmTicks > 0) && p.dashTicks <= 0) {
     let dx = input.move[0], dz = input.move[1]; const a = input.cam_yaw_deg * Math.PI / 180;
     let wx = dx * Math.cos(a) + dz * Math.sin(a), wz = -dx * Math.sin(a) + dz * Math.cos(a), d = Math.hypot(wx, wz);
     if (!d) { wx = p.facing[0]; wz = p.facing[2]; d = Math.hypot(wx, wz) || 1; }
@@ -536,7 +572,9 @@ export function stepGame(game, rawInput = {}, { snapshotEvery = 10 } = {}) {
   }
   movePlayer(game, input);
   if (game.state !== "playing") return partialRecords();
-  pickupItems(game); interact(game, input); updateSafeZones(game); pulse(game, input);
+  if (!respawning && p.respawnTicks <= 0) { pickupItems(game); interact(game, input); }
+  updateSafeZones(game);
+  if (!respawning && p.respawnTicks <= 0) pulse(game, input);
   updateShades(game); updateLanternFuel(game); updateDrifters(game); spawnEntities(game);
   if (p.flames <= 0) finishNight(game, "lost", "no_flames");
   else if (game.timeLeftTicks <= 0) {
@@ -558,13 +596,17 @@ export function runHeadless({ seed = 1, night = 1, ticks = 0, scenario = null, i
   let frameIndex = 0;
   for (let i = 0; i < ticks && game.state !== "won" && game.state !== "lost"; i++) {
     while (frameIndex < inputFrames.length && inputFrames[frameIndex].tick === i) {
-      Object.assign(game.lastInput, inputFrames[frameIndex]); frameIndex++;
+      const { tick: _ignoredTick, ...frame } = inputFrames[frameIndex];
+      Object.assign(game.lastInput, frame); frameIndex++;
     }
     const records = stepGame(game, game.lastInput, { snapshotEvery });
     for (const record of records) {
       if (record.type === "snapshot" && record.tick !== 0 && (record.tick % snapshotEvery !== 0)) continue;
       output.push(record);
     }
+  }
+  if ((game.state === "won" || game.state === "lost") && (output[output.length - 1]?.type !== "snapshot" || output[output.length - 1]?.tick !== game.tick)) {
+    output.push(snapshot(game));
   }
   output.push({ type: "end", ticks: game.tick, state: game.state, score: game.score, night: game.night });
   return { game, output };

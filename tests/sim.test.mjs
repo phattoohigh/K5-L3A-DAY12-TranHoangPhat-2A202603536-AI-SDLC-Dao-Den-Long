@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createGame, runHeadless, stepGame } from "../src/sim.mjs";
 
 const quiet = { random_motes: false, random_shades: false, random_drifters: false, wind_enabled: false, motes: [], shades: [], drifters: [] };
@@ -218,4 +219,143 @@ test("dawn requires sixty percent lit and never ends early", () => {
   stepGame(g, {});
   assert.equal(g.state, "won");
   assert.ok(g.events.some(e => e.name === "game_over" && e.data.reason === "dawn_survived"));
+  // Each of 3 lit lanterns decayed 2 ticks => 99.966..., floor = 99 => 3*(50+99) + 3*50 = 597
+  assert.equal(g.score, 3 * (50 + 99) + 3 * 50);
+});
+
+test("dawn with fewer than sixty percent lit loses without dawn bonus", () => {
+  const lanterns = [1, 2, 3, 4, 5].map(i => ({ id: `L${i}`, lit: i <= 2, fuel: 80, ever_lit: i <= 2 }));
+  const g = createGame({ scenario: { ...quiet, time_left_s: 1 / 60, lanterns } });
+  stepGame(g, {});
+  assert.equal(g.state, "lost");
+  assert.equal(g.score, 0);
+  assert.ok(g.events.some(e => e.name === "game_over" && e.data.reason === "dawn"));
+});
+
+test("no_flames takes precedence over dawn survival on the final tick", () => {
+  const lanterns = [1, 2, 3, 4, 5].map(i => ({ id: `L${i}`, lit: i <= 4, fuel: 90, ever_lit: i <= 4 }));
+  const g = createGame({ scenario: { ...quiet, time_left_s: 1 / 60, player: { pos: [42, -10.1, 0], flames: 1 }, lanterns } });
+  stepGame(g, {});
+  assert.equal(g.state, "lost");
+  assert.ok(g.events.some(e => e.name === "game_over" && e.data.reason === "no_flames"));
+});
+
+test("night 2 launch pad arcs under gravity and lands cleanly on the opposite island", () => {
+  const g = createGame({ night: 2, scenario: { ...quiet, player: { pos: [20, 0, 18] } } });
+  stepGame(g, {});
+  assert.equal(g.player.launched, true);
+  assert.equal(Math.round(Math.hypot(g.player.vel[0], g.player.vel[2])), 24);
+  assert.equal(g.player.vel[1], 14);
+  let landed = false;
+  for (let i = 0; i < 120; i++) {
+    stepGame(g, {});
+    if (g.player.grounded) { landed = true; break; }
+  }
+  assert.equal(landed, true);
+  assert.equal(g.player.launched, false);
+  assert.equal(g.player.pos[1], 0);
+  assert.ok(Math.hypot(g.player.pos[0] - 70, g.player.pos[2]) <= 28);
+});
+
+test("night 3 launch pad lands cleanly on the elevated center disc", () => {
+  const g = createGame({ night: 3, scenario: { ...quiet, player: { pos: [0, 3, 13] } } });
+  let landed = false;
+  for (let i = 0; i < 90; i++) {
+    stepGame(g, {});
+    if (i > 5 && g.player.grounded) { landed = true; break; }
+  }
+  assert.equal(landed, true);
+  assert.equal(g.player.pos[1], 6);
+  assert.ok(Math.hypot(g.player.pos[0], g.player.pos[2]) <= 8);
+});
+
+test("night 3 blocks walking straight up sheer cliffs but allows ascending the ramp", () => {
+  const cliff = createGame({ night: 3, scenario: { ...quiet, player: { pos: [0, 0, 24.05] } } });
+  for (let i = 0; i < 30; i++) stepGame(cliff, { move: [0, -1] });
+  assert.equal(cliff.player.pos[1], 0);
+  assert.ok(cliff.player.pos[2] >= 24);
+
+  const a = 30 * Math.PI / 180;
+  const ramp = createGame({ night: 3, scenario: { ...quiet, player: { pos: [Math.cos(a) * 29.8, 0, Math.sin(a) * 29.8] } } });
+  for (let i = 0; i < 90; i++) stepGame(ramp, { move: [-Math.cos(a), -Math.sin(a)] });
+  assert.equal(ramp.player.pos[1], 3);
+});
+
+test("night 2 unrailed bridge supports crossing and drops player when stepping off", () => {
+  const bridge = createGame({ night: 2, scenario: { ...quiet, player: { pos: [35, 0, 0] } } });
+  for (let i = 0; i < 20; i++) stepGame(bridge, { move: [1, 0] });
+  assert.equal(bridge.player.grounded, true);
+  assert.equal(bridge.player.pos[1], 0);
+  for (let i = 0; i < 120; i++) stepGame(bridge, { move: [0, 1] });
+  assert.equal(bridge.player.flames, 2);
+});
+
+test("night 3 fall respawns at center disc, locks actions while respawning, and keeps full 90-tick invuln after", () => {
+  const g = createGame({ night: 3, scenario: { ...quiet, player: { pos: [47, -10.1, 0], carried: 4 }, motes: [[0, 6, 0]] } });
+  stepGame(g, {});
+  assert.deepEqual(g.player.pos, [0, 6, 0]);
+  assert.equal(g.player.respawnTicks, 60);
+  assert.equal(g.player.invuln, 90);
+  for (let i = 0; i < 59; i++) stepGame(g, { dash: true });
+  assert.equal(g.player.carried, 0);
+  assert.equal(g.player.invuln, 90);
+  stepGame(g, {}); // respawnTicks 1 -> 0
+  assert.equal(g.player.respawnTicks, 0);
+  assert.equal(g.player.invuln, 90);
+  stepGame(g, {}); // first active tick decrements invuln to 89
+  assert.equal(g.player.invuln, 89);
+});
+
+test("refuel ignores full lanterns and restores safe zone when crossing fuel 30", () => {
+  const full = createGame({ scenario: { ...quiet, player: { pos: [0, 0, 0], carried: 5 }, lanterns: [{ id: "L1", pos: [1, 0, 0], lit: true, fuel: 100 }] } });
+  stepGame(full, { interact: true });
+  assert.equal(full.player.carried, 5);
+  assert.equal(full.score, 0);
+
+  const weak = createGame({
+    scenario: {
+      ...quiet,
+      player: { pos: [0, 0, 0], carried: 3 },
+      lanterns: [{ id: "L1", pos: [1, 0, 0], lit: true, fuel: 20 }],
+      shades: [{ id: "S1", pos: [3, 0, 0], state: "wander" }],
+    },
+  });
+  stepGame(weak, { interact: true });
+  assert.ok(weak.lanterns[0].fuelUnits / 60 >= 49);
+  for (let i = 0; i < 30; i++) stepGame(weak, {});
+  assert.ok(Math.hypot(weak.shades[0].pos[0] - 1, weak.shades[0].pos[2]) >= 5.99);
+});
+
+test("picked-up dropped motes do not count against the 30 active mote cap", () => {
+  const motes = Array.from({ length: 29 }, (_, i) => ({ id: `M${i + 1}`, pos: [10 + i * 0.2, 0, 0], kind: "random" }));
+  motes.push({ id: "M30", pos: [0, 0, 0], kind: "dropped", ttl_ticks: 480 });
+  const g = createGame({ scenario: { ...quiet, random_motes: true, player: { pos: [0, 0, 0] }, motes } });
+  stepGame(g, {});
+  assert.equal(g.player.carried, 1);
+  assert.equal(g.motes.filter(m => m.active).length, 29);
+  for (let i = 1; i < 240; i++) stepGame(g, {});
+  assert.equal(g.motes.filter(m => m.active).length, 30);
+});
+
+test("scenario shade starting in recoil does not throw", () => {
+  const g = createGame({ scenario: { ...quiet, shades: [{ id: "S1", pos: [5, 0, 0], state: "recoil", state_ticks_left: 2 }] } });
+  stepGame(g, {});
+  stepGame(g, {});
+  assert.equal(g.shades[0].state, "wander");
+});
+
+test("headless CLI validates arguments, malformed inputs, and deterministic JSONL output", () => {
+  const badNight = spawnSync(process.execPath, ["src/headless.mjs", "--night", "4", "--ticks", "10"], { encoding: "utf8" });
+  assert.equal(badNight.status, 1);
+
+  const missingFile = spawnSync(process.execPath, ["src/headless.mjs", "--night", "1", "--ticks", "10", "--scenario", "tests/scenarios/does-not-exist.json"], { encoding: "utf8" });
+  assert.equal(missingFile.status, 2);
+
+  const run1 = spawnSync(process.execPath, ["src/headless.mjs", "--seed", "303", "--night", "1", "--scenario", "tests/scenarios/phase3-fuel-drain.json", "--ticks", "180", "--snapshot-every", "60"], { encoding: "utf8" });
+  const run2 = spawnSync(process.execPath, ["src/headless.mjs", "--seed", "303", "--night", "1", "--scenario", "tests/scenarios/phase3-fuel-drain.json", "--ticks", "180", "--snapshot-every", "60"], { encoding: "utf8" });
+  assert.equal(run1.status, 0);
+  assert.equal(run1.stdout, run2.stdout);
+  const rows = run1.stdout.trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(rows[0].type, "snapshot");
+  assert.equal(rows[rows.length - 1].type, "end");
 });
