@@ -7,7 +7,7 @@ Machine: MacBook Pro (macOS), Node.js 26.0.0
 
 - `node tools/cp0/hello-headless.mjs`: passed (`{"status":"ready","project":"dao-den-long","mode":"headless","runtime":"Node.js 26.0.0"}`).
 - `npm run build`: passed syntax checks across `src/sim.mjs`, `src/headless.mjs`, `src/web/game.mjs`, and `tools/verify.mjs`.
-- `npm test`: **34/34 passed**, 0 failed. Includes:
+- `npm test`: **35/35 passed**, 0 failed. Includes:
   - All retained Phase 1–2 behavior (movement, pickups, pulse, dash, pause, drifters, wind, charms, shade spawn, safe zones).
   - Phase 2 audit regression fixes: ballistic launch pad landing on Night 2 (`[51.614, 0, 6.619]`) and Night 3 (`Y=6` center disc), Night 3 cliff blocking vs 30° ramp ascent, Night 2 unrailed bridge crossing/falling, Night 3 respawn at `[0, 6, 0]` with full 90-tick post-respawn invulnerability, active mote cap excluding picked-up dropped motes, and defensive scenario recoil initialization.
   - Phase 3 Contract v1.2 rules: exact 1/60 fuel decay, `lantern_out`, 5-mote relight, refuel (ignoring full lanterns and restoring safe zone past fuel 30), dynamic capacity up to 20, `drain` + `+15` pulse bonus, dawn survival (`>= 60%`) with exact bonus score `sum(50 + floor(fuel)) + 50 * flames`, dawn loss (`< 60%`), and `no_flames` precedence on the final tick.

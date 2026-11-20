@@ -584,13 +584,13 @@ function drawWorld(now) {
     drawRing([pad.pos[0], pad.pos[1] + .02, pad.pos[2]], .9, 1.4, colors.amber);
   }
 
-  // Night 3 Multi-Tier Elevated Sanctuary
+  // Night 3 Multi-Tier Elevated Sanctuary (matches sim.mjs north half-ring Y=3 & center disc Y=6)
   if (currentNight === 3) {
-    draw("cylinder", [0, 2.8, 0], [24, .32, 24], colors.grass);
-    drawRing([0, 3.02, 0], 12, 24, colors.grassLight, 0, 180);
-    draw("cylinder", [0, 5.8, 0], [8.5, .38, 8.5], colors.sand);
-    draw("cylinder", [0, 6.0, 0], [2.2, 8.2, 2.2], colors.woodDark);
-    draw("torus", [0, 6.1, 0], [8.2, 0.2, 8.2], colors.gold, 0.3);
+    drawRing([0, 2.98, 0], 12, 24, colors.grass, 0, 180);
+    drawRing([0, 3.02, 0], 12.6, 23.4, colors.grassLight, 0, 180);
+    draw("cylinder", [0, 0, 0], [3.2, 5.8, 3.2], colors.rockDark);
+    draw("cylinder", [0, 5.75, 0], [8.0, .28, 8.0], colors.sand);
+    draw("torus", [0, 6.02, 0], [8.0, 0.16, 8.0], colors.gold, 0.3);
     for (const deg of [30, 150]) drawRamp(deg);
   }
 

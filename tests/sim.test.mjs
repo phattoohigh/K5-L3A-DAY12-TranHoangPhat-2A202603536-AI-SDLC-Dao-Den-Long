@@ -344,6 +344,21 @@ test("scenario shade starting in recoil does not throw", () => {
   assert.equal(g.shades[0].state, "wander");
 });
 
+test("night 3 shades and drifters track terrain elevation instead of clipping underground", () => {
+  const g = createGame({
+    night: 3,
+    scenario: {
+      ...quiet,
+      player: { pos: [0, 6, 0] },
+      shades: [{ id: "S1", pos: [18, 0, 10], state: "wander" }],
+      drifters: [{ id: "D1", pos: [0, 0, 5], state: "idle" }],
+    },
+  });
+  stepGame(g, {});
+  assert.equal(g.shades[0].pos[1], 3);
+  assert.equal(g.drifters[0].pos[1], 6);
+});
+
 test("headless CLI validates arguments, malformed inputs, and deterministic JSONL output", () => {
   const badNight = spawnSync(process.execPath, ["src/headless.mjs", "--night", "4", "--ticks", "10"], { encoding: "utf8" });
   assert.equal(badNight.status, 1);

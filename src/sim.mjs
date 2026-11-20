@@ -424,6 +424,7 @@ function updateShades(game) {
       }
     }
     if (s.safeTicks > 0) s.safeTicks--;
+    if (game.night === 3 && insideMap(game.map, s.pos[0], s.pos[2])) s.pos[1] = surfaceY(3, s.pos[0], s.pos[2]);
   }
 }
 
@@ -464,6 +465,7 @@ function updateDrifters(game) {
       const phase = game.simTick / 75 + (d.phase ?? 0);
       d.pos[0] += Math.cos(phase) * 2 / HZ; d.pos[2] += Math.sin(phase) * 2 / HZ;
     }
+    if (game.night === 3 && insideMap(game.map, d.pos[0], d.pos[2])) d.pos[1] = surfaceY(3, d.pos[0], d.pos[2]);
   }
 }
 

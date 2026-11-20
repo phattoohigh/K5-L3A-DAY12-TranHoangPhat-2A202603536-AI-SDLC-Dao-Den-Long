@@ -14,7 +14,7 @@ npm run serve
 
 Mở <http://localhost:4173>. Lệnh server chạy ở foreground; nhấn Ctrl+C để dừng.
 
-Để chạy trọn bộ kiểm chứng tự động (CP0 smoke, build, 34 unit/CLI tests, kiểm tra tính tất định, đo hiệu năng Đêm 3 và quỹ đạo bục nhảy):
+Để chạy trọn bộ kiểm chứng tự động (CP0 smoke, build, 35 unit/CLI tests, kiểm tra tính tất định, đo hiệu năng Đêm 3 và quỹ đạo bục nhảy):
 
 ```bash
 npm run verify
