@@ -397,8 +397,8 @@ function buildRampMesh(degrees) {
   return out;
 }
 
-export function createRenderer(canvas) {
-  const gl = canvas.getContext("webgl", { antialias: true, alpha: false, powerPreference: "high-performance" });
+export function createRenderer(canvas, { preserveDrawingBuffer = false } = {}) {
+  const gl = canvas.getContext("webgl", { antialias: true, alpha: false, preserveDrawingBuffer, powerPreference: "high-performance" });
   if (!gl) return null;
 
   function compile(type, src) {
@@ -701,12 +701,12 @@ export function createRenderer(canvas) {
     }
   }
 
-  function drawShade(s, game, now, time, colorblind) {
+  function drawShade(s, game, now, time, colorblind, benchMode = false, reducedMotion = false) {
     const isStunned = s.state === "stunned";
     const isDrain = s.state === "drain";
     const isSpawn = s.state === "spawning";
     const [sx, baseY, sz] = s.pos;
-    const bob = isStunned ? 0 : Math.sin(time * 3.8 + sx) * 0.12;
+    const bob = (isStunned || reducedMotion || benchMode) ? 0 : Math.sin(time * 3.8 + sx) * 0.12;
     const spawnScale = isSpawn ? Math.max(0.25, 1 - (s.stateTicks ?? 0) / 30) : 1;
     const sy = baseY + 0.95 + bob;
     const accent = colorblind ? PALETTE.colorblindAccent : PALETTE.shadeAccent;
@@ -720,6 +720,13 @@ export function createRenderer(canvas) {
     const yaw = Math.atan2(tx - sx, tz - sz);
     const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = fz, rz = -fx;
 
+    if (benchMode) {
+      // Standardized bench silhouette (creative sub-ornaments disabled per Ticket-04)
+      draw("cone", [sx, sy - 0.82, sz], [0.76, 1.45, 0.76], PALETTE.shadeBody, { rotY: yaw, glow: 0.04 });
+      draw("sphere", [sx, sy + 0.28, sz], [0.48, 0.52, 0.48], PALETTE.shadeCore, { glow: 0.06 });
+      return;
+    }
+
     // Ground dark shadow
     queueAlpha(() => draw("disc", [sx, baseY + 0.03, sz], [0.85 * spawnScale, 1, 0.85 * spawnScale], "#05020C", { alpha: 0.52, flat: true }));
 
@@ -727,10 +734,10 @@ export function createRenderer(canvas) {
     const tilt = s.state === "chase" ? 0.24 : (isDrain ? -0.15 : 0);
     draw("cone", [sx, sy - 0.82, sz], [0.76 * spawnScale, 1.45 * spawnScale, 0.76 * spawnScale], isStunned ? PALETTE.shadeStun : PALETTE.shadeBody, { rotY: yaw, rotX: tilt, glow: isStunned ? 0.18 : 0.04 });
     draw("sphere", [sx + fx * tilt * 0.3, sy + 0.28, sz + fz * tilt * 0.3], [0.48 * spawnScale, 0.52 * spawnScale, 0.48 * spawnScale], isStunned ? PALETTE.shadeStun : PALETTE.shadeCore, { glow: 0.06 });
-    draw("torusThin", [sx, sy - 0.15, sz], [0.72 * spawnScale, 0.7, 0.72 * spawnScale], accent, { rotY: time * 2.2, rotX: 0.22, glow: isStunned ? 0.15 : 0.55 });
+    draw("torusThin", [sx, sy - 0.15, sz], [0.72 * spawnScale, 0.7, 0.72 * spawnScale], accent, { rotY: reducedMotion ? 0 : time * 2.2, rotX: 0.22, glow: isStunned ? 0.15 : 0.55 });
 
     // Twin glowing phantom eyes properly aligned to facing yaw!
-    const eyeGlow = isStunned ? 0.1 : 1.15 + 0.3 * Math.sin(time * 7 + sx);
+    const eyeGlow = isStunned ? 0.1 : (reducedMotion ? 1.15 : 1.15 + 0.3 * Math.sin(time * 7 + sx));
     const eyeY = sy + 0.32;
     const eyeBaseX = sx + fx * (0.44 * spawnScale), eyeBaseZ = sz + fz * (0.44 * spawnScale);
     draw("sphere", [eyeBaseX - rx * 0.16, eyeY, eyeBaseZ - rz * 0.16], [0.075, 0.055, 0.06], isStunned ? PALETTE.shadeStun : accent, { glow: eyeGlow });
@@ -738,19 +745,19 @@ export function createRenderer(canvas) {
 
     // Orbiting shadow tendrils
     for (let w = 0; w < 4; w++) {
-      const wa = (w / 4) * Math.PI * 2 + time * 2.6;
+      const wa = (w / 4) * Math.PI * 2 + (reducedMotion ? 0 : time * 2.6);
       draw("sphere", [sx + Math.cos(wa) * 0.55 * spawnScale, sy - 0.62 + Math.sin(wa * 2) * 0.14, sz + Math.sin(wa) * 0.55 * spawnScale], [0.11, 0.17, 0.11], PALETTE.shadeCore);
     }
 
     // Colorblind distinct diamond ring
     if (colorblind && !isStunned) {
-      draw("torusThin", [sx, sy + 0.1, sz], [0.98, 0.9, 0.98], PALETTE.colorblindAccent, { rotY: time * 1.8, glow: 0.85 });
+      draw("torusThin", [sx, sy + 0.1, sz], [0.98, 0.9, 0.98], PALETTE.colorblindAccent, { rotY: reducedMotion ? 0 : time * 1.8, glow: 0.85 });
     }
 
     // Stunned golden seal rings
     if (isStunned) {
-      draw("torusThin", [sx, sy + 0.08, sz], [1.05, 0.9, 1.05], PALETTE.goldBright, { rotY: time * 5, rotX: 0.3, glow: 1.0 });
-      draw("torusThin", [sx, sy + 0.42, sz], [0.82, 0.9, 0.82], PALETTE.gold, { rotY: -time * 4, rotZ: 0.25, glow: 0.85 });
+      draw("torusThin", [sx, sy + 0.08, sz], [1.05, 0.9, 1.05], PALETTE.goldBright, { rotY: reducedMotion ? 0 : time * 5, rotX: 0.3, glow: 1.0 });
+      draw("torusThin", [sx, sy + 0.42, sz], [0.82, 0.9, 0.82], PALETTE.gold, { rotY: reducedMotion ? 0 : -time * 4, rotZ: 0.25, glow: 0.85 });
     }
 
     // Active DRAIN energy tether beam to weak lantern!
@@ -765,7 +772,7 @@ export function createRenderer(canvas) {
         const beamPitch = Math.atan2(Math.hypot(dx, dz), dy);
         queueAlpha(() => {
           draw("cylinder", [sx, sy, sz], [0.09, beamLen, 0.09], accent, { rotY: beamYaw, rotX: beamPitch, alpha: 0.65, flat: true });
-          const pulseT = (time * 2.2) % 1;
+          const pulseT = reducedMotion ? 0.5 : (time * 2.2) % 1;
           draw("sphere", [lx - dx * pulseT, ly - dy * pulseT, lz - dz * pulseT], [0.22, 0.22, 0.22], PALETTE.amber, { alpha: 0.9, flat: true });
           draw("sphere", [mx, my, mz], [0.16, 0.16, 0.16], accent, { alpha: 0.75, flat: true });
         });
@@ -820,14 +827,25 @@ export function createRenderer(canvas) {
   gl.enable(gl.CULL_FACE);
   gl.cullFace(gl.BACK);
 
+  function getRendererInfo() {
+    try {
+      const dbg = gl.getExtension && gl.getExtension("WEBGL_debug_renderer_info");
+      const gpu = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      return `WebGL 1.0 custom procedural (${gpu || "WebGL"})`;
+    } catch {
+      return "WebGL 1.0 custom procedural";
+    }
+  }
+
   return {
+    getRendererInfo,
     spawnPulse,
     spawnBurst,
-    render(game, { now, cameraYaw, orbitMenu = false, colorblind = false }) {
+    render(game, { now, cameraYaw, orbitMenu = false, colorblind = false, benchMode = false, benchElapsedSec = 0, reducedMotion = false }) {
       const time = now * 0.001;
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const w = Math.max(1, Math.floor(window.innerWidth * dpr));
-      const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+      const dpr = benchMode ? 1 : Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.floor((benchMode ? 1280 : window.innerWidth) * dpr));
+      const h = Math.max(1, Math.floor((benchMode ? 720 : window.innerHeight) * dpr));
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
         canvas.height = h;
@@ -846,11 +864,16 @@ export function createRenderer(canvas) {
       gl.clearColor(fogR, fogG, fogB, 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-      // Camera: sweeping orbital view on Menu, crisp third-person follow in-game
+      // Camera: Ticket-04 bench orbit (CCW from above, R=30, Y=15, 15s/rev, start (30,15,0)),
+      // menu orbit, or third-person follow
       const p = game.player;
       let eye, focus;
-      if (orbitMenu) {
-        const a = time * 0.16;
+      if (benchMode) {
+        const angle = (benchElapsedSec / 15) * Math.PI * 2;
+        eye = [30 * Math.cos(angle), 15, -30 * Math.sin(angle)];
+        focus = [0, 0, 0];
+      } else if (orbitMenu) {
+        const a = reducedMotion ? 0.65 : time * 0.16;
         eye = [Math.sin(a) * 34, 15.5, Math.cos(a) * 34];
         focus = [0, 2.2, 0];
       } else {
@@ -885,7 +908,7 @@ export function createRenderer(canvas) {
       for (const l of game.lanterns) {
         if (!l.lit) continue;
         const fuel = l.fuelUnits / 60;
-        const flicker = 0.92 + 0.08 * Math.sin(time * 8 + l.pos[0]);
+        const flicker = reducedMotion ? 1.0 : 0.92 + 0.08 * Math.sin(time * 8 + l.pos[0]);
         const strength = (fuel < 30 ? 1.2 : 2.1) * flicker;
         pushLight(l.pos[0], l.pos[1] + 3.0, l.pos[2], 1.1 * strength, 0.72 * strength, 0.25 * strength);
       }
@@ -895,38 +918,42 @@ export function createRenderer(canvas) {
 
       transparentQueue.length = 0;
 
-      // 1. CELESTIAL SKY: Moon, Starfield, & Floating Sky Lanterns (Hoa Đăng)
+      // 1. CELESTIAL SKY (creative-only sky lanterns & extra stars disabled during benchMode)
       gl.disable(gl.CULL_FACE);
       draw("sphereHi", [68, 54, -92], [5.8, 5.8, 5.8], PALETTE.core, { flat: true });
-      queueAlpha(() => draw("sphere", [68, 54, -92], [11.5, 11.5, 11.5], PALETTE.gold, { alpha: 0.16, flat: true }));
-      for (let i = 0; i < 64; i++) {
-        const sx = Math.sin(i * 61.3 + 1.1) * 115;
-        const sz = Math.cos(i * 23.7 + 0.7) * 115;
-        const sy = 26 + (i % 10) * 3.1;
-        const szs = 0.09 + (i % 3) * 0.045;
-        draw("sphere", [sx, sy, sz], [szs, szs, szs], i % 5 === 0 ? PALETTE.goldBright : PALETTE.core, { flat: true });
-      }
-      for (let i = 0; i < 14; i++) {
-        const lx = Math.sin(i * 2.55) * 76 + Math.cos(time * 0.12 + i) * 4;
-        const lz = Math.cos(i * 2.55) * 76;
-        const ly = 11 + ((time * 1.15 + i * 7.5) % 42);
-        draw("octPillar", [lx, ly, lz], [0.36, 0.56, 0.36], PALETTE.amber, { flat: true });
-        draw("sphere", [lx, ly + 0.28, lz], [0.2, 0.2, 0.2], PALETTE.core, { flat: true });
+      if (!benchMode) {
+        queueAlpha(() => draw("sphere", [68, 54, -92], [11.5, 11.5, 11.5], PALETTE.gold, { alpha: 0.16, flat: true }));
+        for (let i = 0; i < 64; i++) {
+          const sx = Math.sin(i * 61.3 + 1.1) * 115;
+          const sz = Math.cos(i * 23.7 + 0.7) * 115;
+          const sy = 26 + (i % 10) * 3.1;
+          const szs = 0.09 + (i % 3) * 0.045;
+          draw("sphere", [sx, sy, sz], [szs, szs, szs], i % 5 === 0 ? PALETTE.goldBright : PALETTE.core, { flat: true });
+        }
+        for (let i = 0; i < 14; i++) {
+          const lx = Math.sin(i * 2.55) * 76 + Math.cos(time * 0.12 + i) * 4;
+          const lz = Math.cos(i * 2.55) * 76;
+          const ly = 11 + (((reducedMotion ? 0 : time * 1.15) + i * 7.5) % 42);
+          draw("octPillar", [lx, ly, lz], [0.36, 0.56, 0.36], PALETTE.amber, { flat: true });
+          draw("sphere", [lx, ly + 0.28, lz], [0.2, 0.2, 0.2], PALETTE.core, { flat: true });
+        }
       }
       gl.enable(gl.CULL_FACE);
 
       // 2. OCEAN & MOONLIT WATER SHIMMER
       draw("box", [0, -10.1, 0], [520, 0.25, 520], PALETTE.seaDeep);
-      for (let r = 1; r <= 7; r++) {
-        const rx = 68 * (r / 8), rz = -92 * (r / 8);
-        const shimmer = 1.0 + 0.2 * Math.sin(time * 2.4 + r);
-        queueAlpha(() => draw("disc", [rx, -9.94, rz], [3.6 * shimmer, 1, 1.4], PALETTE.core, { alpha: 0.13, flat: true }));
-      }
-      for (let i = 0; i < 12; i++) {
-        const wx = Math.sin(i * 1.9 + time * 0.1) * 72;
-        const wz = Math.cos(i * 2.3 + time * 0.08) * 72;
-        const ws = 10 + Math.sin(i + time * 0.5) * 3;
-        queueAlpha(() => draw("box", [wx, -9.95, wz], [ws, 0.02, 0.9], PALETTE.seaFoam, { rotY: 0.4, alpha: 0.12, flat: true }));
+      if (!benchMode) {
+        for (let r = 1; r <= 7; r++) {
+          const rx = 68 * (r / 8), rz = -92 * (r / 8);
+          const shimmer = reducedMotion ? 1.0 : 1.0 + 0.2 * Math.sin(time * 2.4 + r);
+          queueAlpha(() => draw("disc", [rx, -9.94, rz], [3.6 * shimmer, 1, 1.4], PALETTE.core, { alpha: 0.13, flat: true }));
+        }
+        for (let i = 0; i < 12; i++) {
+          const wx = Math.sin(i * 1.9 + (reducedMotion ? 0 : time * 0.1)) * 72;
+          const wz = Math.cos(i * 2.3 + (reducedMotion ? 0 : time * 0.08)) * 72;
+          const ws = 10 + Math.sin(i + (reducedMotion ? 0 : time * 0.5)) * 3;
+          queueAlpha(() => draw("box", [wx, -9.95, wz], [ws, 0.02, 0.9], PALETTE.seaFoam, { rotY: 0.4, alpha: 0.12, flat: true }));
+        }
       }
 
       // 3. ISLANDS, SHORELINE CLIFFS, SCENIC TREES & LANDMARKS
@@ -937,31 +964,29 @@ export function createRenderer(canvas) {
         draw("islandBase", [x, -0.77, z], [r, 0.75, r], PALETTE.sand);
         draw("islandBase", [x, -0.18, z], [r - 0.85, 0.18, r - 0.85], PALETTE.grass);
         draw("islandBase", [x, -0.058, z], [r * 0.82, 0.07, r * 0.82], PALETTE.grassMid);
-        // Sea foam ring around coastline
-        queueAlpha(() => {
-          const pulse = 1 + Math.sin(time * 1.8 + x) * 0.012;
-          drawRing([x, -9.9, z], r * 0.76 * pulse, (r * 0.76 + 1.8) * pulse, PALETTE.seaFoam, { alpha: 0.26, flat: true });
-        });
-        // Coastal boulders
-        for (let b = 0; b < 12; b++) {
-          const ba = (b / 12) * Math.PI * 2 + x * 0.1;
-          const bx = x + Math.cos(ba) * (r - 0.55);
-          const bz = z + Math.sin(ba) * (r - 0.55);
-          const bs = 0.65 + (b % 3) * 0.35;
-          draw("sphere", [bx, 0.12, bz], [bs, bs * 0.55, bs * 0.85], b % 2 ? PALETTE.rock : PALETTE.rockDark, { rotY: ba });
-        }
-        // Scenic trees around outer margin (avoiding bridge/ramp/lantern lanes)
-        const treeStyle = game.night === 2 ? "areca" : "pine";
-        const treeCount = game.night === 2 ? 7 : 9;
-        for (let ti = 0; ti < treeCount; ti++) {
-          const ta = (ti / treeCount) * Math.PI * 2 + 0.38;
-          const tx = x + Math.cos(ta) * (r - 3.0);
-          const tz = z + Math.sin(ta) * (r - 3.0);
-          // Keep clear of bridges, lanterns, and pads
-          const tooClose = game.lanterns.some(l => Math.hypot(tx - l.pos[0], tz - l.pos[2]) < 4.5)
-            || game.map.pads.some(pd => Math.hypot(tx - pd.pos[0], tz - pd.pos[2]) < 4)
-            || game.map.bridges.some(br => tx > br.x1 - 3 && tx < br.x2 + 3 && Math.abs(tz) < 5);
-          if (!tooClose) drawTree(tx, 0, tz, treeStyle, ti * 1.7 + x, time);
+        if (!benchMode) {
+          queueAlpha(() => {
+            const pulse = reducedMotion ? 1 : 1 + Math.sin(time * 1.8 + x) * 0.012;
+            drawRing([x, -9.9, z], r * 0.76 * pulse, (r * 0.76 + 1.8) * pulse, PALETTE.seaFoam, { alpha: 0.26, flat: true });
+          });
+          for (let b = 0; b < 12; b++) {
+            const ba = (b / 12) * Math.PI * 2 + x * 0.1;
+            const bx = x + Math.cos(ba) * (r - 0.55);
+            const bz = z + Math.sin(ba) * (r - 0.55);
+            const bs = 0.65 + (b % 3) * 0.35;
+            draw("sphere", [bx, 0.12, bz], [bs, bs * 0.55, bs * 0.85], b % 2 ? PALETTE.rock : PALETTE.rockDark, { rotY: ba });
+          }
+          const treeStyle = game.night === 2 ? "areca" : "pine";
+          const treeCount = game.night === 2 ? 7 : 9;
+          for (let ti = 0; ti < treeCount; ti++) {
+            const ta = (ti / treeCount) * Math.PI * 2 + 0.38;
+            const tx = x + Math.cos(ta) * (r - 3.0);
+            const tz = z + Math.sin(ta) * (r - 3.0);
+            const tooClose = game.lanterns.some(l => Math.hypot(tx - l.pos[0], tz - l.pos[2]) < 4.5)
+              || game.map.pads.some(pd => Math.hypot(tx - pd.pos[0], tz - pd.pos[2]) < 4)
+              || game.map.bridges.some(br => tx > br.x1 - 3 && tx < br.x2 + 3 && Math.abs(tz) < 5);
+            if (!tooClose) drawTree(tx, 0, tz, treeStyle, ti * 1.7 + x, reducedMotion ? 0 : time);
+          }
         }
       }
 
@@ -1029,33 +1054,36 @@ export function createRenderer(canvas) {
         const idx = Number(m.id.slice(1)) || 1;
         const isDropped = m.kind === "dropped";
         const mx = m.pos[0], mz = m.pos[2];
-        const my = m.pos[1] + 0.52 + Math.sin(time * 2.8 + idx * 1.3) * 0.16;
-        const pulse = 0.19 + 0.04 * Math.sin(time * 5 + idx);
+        const my = m.pos[1] + 0.52 + (reducedMotion || benchMode ? 0 : Math.sin(time * 2.8 + idx * 1.3) * 0.16);
+        const pulse = benchMode ? 0.2 : 0.19 + (reducedMotion ? 0 : 0.04 * Math.sin(time * 5 + idx));
         const coreCol = isDropped ? PALETTE.moteDrop : PALETTE.mote;
         const glowCol = isDropped ? PALETTE.teal : PALETTE.moteGlow;
         draw("sphere", [mx, my, mz], [pulse, pulse, pulse], coreCol, { glow: 1.5 });
-        const flap = Math.sin(time * 28 + idx) * 0.35;
-        draw("box", [mx + 0.14, my + 0.08, mz], [0.18, 0.02, 0.1], PALETTE.core, { rotZ: flap, glow: 0.8 });
-        draw("box", [mx - 0.14, my + 0.08, mz], [0.18, 0.02, 0.1], PALETTE.core, { rotZ: -flap, glow: 0.8 });
-        queueAlpha(() => draw("sphere", [mx, my, mz], [pulse * 2.1, pulse * 2.1, pulse * 2.1], glowCol, { alpha: 0.24, flat: true }));
+        if (!benchMode) {
+          const flap = reducedMotion ? 0.1 : Math.sin(time * 28 + idx) * 0.35;
+          draw("box", [mx + 0.14, my + 0.08, mz], [0.18, 0.02, 0.1], PALETTE.core, { rotZ: flap, glow: 0.8 });
+          draw("box", [mx - 0.14, my + 0.08, mz], [0.18, 0.02, 0.1], PALETTE.core, { rotZ: -flap, glow: 0.8 });
+          queueAlpha(() => draw("sphere", [mx, my, mz], [pulse * 2.1, pulse * 2.1, pulse * 2.1], glowCol, { alpha: 0.24, flat: true }));
+        }
       }
 
       // 6. CHARMS (Bùa Gió)
       for (const c of game.charms) {
         if (!c.available) continue;
         const [cx, baseY, cz] = c.pos;
-        const cy = baseY + 0.78 + Math.sin(time * 3) * 0.12;
-        draw("box", [cx, cy, cz], [0.46, 0.64, 0.06], PALETTE.charmRed, { rotY: time * 1.9, glow: 0.55 });
-        draw("box", [cx, cy, cz], [0.32, 0.48, 0.08], PALETTE.goldBright, { rotY: time * 1.9, glow: 0.6 });
-        draw("torusThin", [cx, cy, cz], [0.68, 0.8, 0.68], PALETTE.teal, { rotY: -time * 2.4, rotX: 0.45, glow: 0.8 });
+        const cy = baseY + 0.78 + (reducedMotion ? 0 : Math.sin(time * 3) * 0.12);
+        const spin = reducedMotion ? 0.4 : time * 1.9;
+        draw("box", [cx, cy, cz], [0.46, 0.64, 0.06], PALETTE.charmRed, { rotY: spin, glow: 0.55 });
+        draw("box", [cx, cy, cz], [0.32, 0.48, 0.08], PALETTE.goldBright, { rotY: spin, glow: 0.6 });
+        draw("torusThin", [cx, cy, cz], [0.68, 0.8, 0.68], PALETTE.teal, { rotY: -spin, rotX: 0.45, glow: 0.8 });
       }
 
       // 7. SHADES & DRIFTERS
-      for (const s of game.shades) drawShade(s, game, now, time, colorblind);
-      for (const d of game.drifters) drawDrifter(d, time);
+      for (const s of game.shades) drawShade(s, game, now, time, colorblind, benchMode, reducedMotion);
+      for (const d of game.drifters) drawDrifter(d, reducedMotion ? 0 : time);
 
       // 8. HEROINE MÂY
-      drawHeroMay(p, now, time, colorblind, game.wind.active);
+      drawHeroMay(p, now, reducedMotion ? 0 : time, colorblind, game.wind.active);
 
       // 9. NIGHT 3 WIND GUST STREAKS
       if (game.night === 3 && (game.wind.active || game.wind.warning)) {
