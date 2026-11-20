@@ -7,8 +7,12 @@
 - Lệnh smoke test: `node tools/cp0/hello-headless.mjs`.
 - Giả định ghi chép: dùng `python3 -m http.server` để phục vụ game tĩnh trong quá trình phát triển; chưa xác nhận lệnh build/run cuối cùng vì mã game chưa được tạo.
 - Nơi lưu giả định, nhật ký AI, bằng chứng và retro: `docs/notes/` và `docs/proof/`.
-- Kiểm tra clone sạch: sẽ ghi kết quả bên dưới sau khi clone commit CP0 sang thư mục tạm và chạy smoke test.
+- Kiểm tra clone sạch: clone commit `ced7bf0` sang `/private/tmp/day12-cp0.hCl8Ya/checkout`; chạy smoke test thành công, working tree clone sạch.
 
 ## Kết quả clone sạch
 
-Chưa chạy.
+Lệnh `node tools/cp0/hello-headless.mjs` trả về:
+
+```json
+{"status":"ready","project":"dao-den-long","mode":"headless","runtime":"Node.js 26.0.0"}
+```
